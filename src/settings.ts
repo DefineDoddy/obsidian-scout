@@ -83,169 +83,116 @@ export class ScoutSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
+		let tvSettingsContainer: HTMLDivElement;
+
 		new Setting(containerEl)
 			.setName("Enable TV Features")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.get("tvFeatures"))
 					.onChange(async (value) => {
-						this.settings.set("tvFeatures", value);
-						this.display();
+						await this.settings.set("tvFeatures", value);
+						tvSettingsContainer.style.display = value
+							? "block"
+							: "none";
 					}),
 			);
 
-		if (this.settings.get("tvFeatures")) {
-			new Setting(containerEl)
-				.setName("TMDB Access Token")
-				.setDesc(
-					"Create a free account on TMDB to get your Access Token.",
-				)
-				.addText((text) =>
-					text
-						.setPlaceholder("Enter your Access Token")
-						.setValue(this.settings.get("tmdbAccessToken") || "")
-						.onChange(async (value) => {
-							this.settings.set("tmdbAccessToken", value);
-							await this.settings.saveSettings();
-						}),
-				);
+		tvSettingsContainer = containerEl.createDiv();
 
-			new Setting(containerEl)
-				.setName("Movie Template File Path")
-				.setDesc(
-					"Path to the movie template file (relative to vault root)",
-				)
-				.addText((text) => {
-					text.setPlaceholder("e.g., templates/movie-template.md")
-						.setValue(
-							this.settings.get("movieTemplateFilePath") || "",
-						)
-						.onChange(async (value) => {
-							this.settings.set("movieTemplateFilePath", value);
-							await this.settings.saveSettings();
-						});
-					return text;
-				})
-				.addButton((btn) =>
-					btn
-						.setButtonText("Choose")
-						.setCta()
-						.onClick(() => {
+		tvSettingsContainer.style.display = this.settings.get("tvFeatures")
+			? "block"
+			: "none";
+
+		new Setting(tvSettingsContainer)
+			.setName("TMDB Access Token")
+			.setDesc("Create a free account on TMDB to get your Access Token.")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter your Access Token")
+					.setValue(this.settings.get("tmdbAccessToken") || "")
+					.onChange((value) =>
+						this.settings.set("tmdbAccessToken", value),
+					),
+			);
+
+		this.addPathSetting(
+			tvSettingsContainer,
+			"Movie Template",
+			"Path to the movie template file (relative to vault root)",
+			"e.g., templates/movie-template.md",
+			"movieTemplateFilePath",
+			"file",
+		);
+
+		this.addPathSetting(
+			tvSettingsContainer,
+			"Movie Location",
+			"Folder to create movie files in (relative to vault root)",
+			"e.g., Movies",
+			"movieOutputLocation",
+			"folder",
+		);
+
+		this.addPathSetting(
+			tvSettingsContainer,
+			"TV Show Template",
+			"Path to the TV show template file (relative to vault root)",
+			"e.g., templates/tv-template.md",
+			"tvTemplateFilePath",
+			"file",
+		);
+
+		this.addPathSetting(
+			tvSettingsContainer,
+			"TV Show Location",
+			"Folder to create TV show files in (relative to vault root)",
+			"e.g., TV Shows",
+			"tvOutputLocation",
+			"folder",
+		);
+	}
+
+	private addPathSetting(
+		container: HTMLElement,
+		name: string,
+		desc: string,
+		placeholder: string,
+		key:
+			| "movieTemplateFilePath"
+			| "movieOutputLocation"
+			| "tvTemplateFilePath"
+			| "tvOutputLocation",
+		type: "file" | "folder",
+	) {
+		let inputEl: HTMLInputElement;
+		new Setting(container)
+			.setName(name)
+			.setDesc(desc)
+			.addText((text) => {
+				inputEl = text.inputEl;
+				text.setPlaceholder(placeholder)
+					.setValue(this.settings.get(key) || "")
+					.onChange((value) => this.settings.set(key, value));
+			})
+			.addButton((btn) =>
+				btn
+					.setButtonText("Choose")
+					.setCta()
+					.onClick(() => {
+						if (type === "file") {
 							new FilePickerModal(this.app, (file) => {
-								const textEls =
-									containerEl.querySelectorAll(
-										'input[type="text"]',
-									);
-								const textEl = textEls[1] as HTMLInputElement; // Second input
-								if (textEl) {
-									textEl.value = file.path;
-									textEl.dispatchEvent(new Event("input"));
-								}
+								inputEl.value = file.path;
+								inputEl.dispatchEvent(new Event("input"));
 							}).open();
-						}),
-				);
-
-			new Setting(containerEl)
-				.setName("Movie Output Location")
-				.setDesc(
-					"Folder to create movie files in (relative to vault root)",
-				)
-				.addText((text) => {
-					text.setPlaceholder("e.g., Movies")
-						.setValue(
-							this.settings.get("movieOutputLocation") || "",
-						)
-						.onChange(async (value) => {
-							this.settings.set("movieOutputLocation", value);
-							await this.settings.saveSettings();
-						});
-					return text;
-				})
-				.addButton((btn) =>
-					btn
-						.setButtonText("Choose")
-						.setCta()
-						.onClick(() => {
+						} else {
 							new FolderPickerModal(this.app, (folder) => {
-								const textEls =
-									containerEl.querySelectorAll(
-										'input[type="text"]',
-									);
-								const textEl = textEls[2] as HTMLInputElement; // Third input
-								if (textEl) {
-									textEl.value = folder.path;
-									textEl.dispatchEvent(new Event("input"));
-								}
+								inputEl.value = folder.path;
+								inputEl.dispatchEvent(new Event("input"));
 							}).open();
-						}),
-				);
-
-			new Setting(containerEl)
-				.setName("TV Template File Path")
-				.setDesc(
-					"Path to the TV show template file (relative to vault root)",
-				)
-				.addText((text) => {
-					text.setPlaceholder("e.g., templates/tv-template.md")
-						.setValue(this.settings.get("tvTemplateFilePath") || "")
-						.onChange(async (value) => {
-							this.settings.set("tvTemplateFilePath", value);
-							await this.settings.saveSettings();
-						});
-					return text;
-				})
-				.addButton((btn) =>
-					btn
-						.setButtonText("Choose")
-						.setCta()
-						.onClick(() => {
-							new FilePickerModal(this.app, (file) => {
-								const textEls =
-									containerEl.querySelectorAll(
-										'input[type="text"]',
-									);
-								const textEl = textEls[3] as HTMLInputElement; // Fourth input
-								if (textEl) {
-									textEl.value = file.path;
-									textEl.dispatchEvent(new Event("input"));
-								}
-							}).open();
-						}),
-				);
-
-			new Setting(containerEl)
-				.setName("TV Output Location")
-				.setDesc(
-					"Folder to create TV show files in (relative to vault root)",
-				)
-				.addText((text) => {
-					text.setPlaceholder("e.g., TV Shows")
-						.setValue(this.settings.get("tvOutputLocation") || "")
-						.onChange(async (value) => {
-							this.settings.set("tvOutputLocation", value);
-							await this.settings.saveSettings();
-						});
-					return text;
-				})
-				.addButton((btn) =>
-					btn
-						.setButtonText("Choose")
-						.setCta()
-						.onClick(() => {
-							new FolderPickerModal(this.app, (folder) => {
-								const textEls =
-									containerEl.querySelectorAll(
-										'input[type="text"]',
-									);
-								const textEl = textEls[4] as HTMLInputElement; // Fifth input
-								if (textEl) {
-									textEl.value = folder.path;
-									textEl.dispatchEvent(new Event("input"));
-								}
-							}).open();
-						}),
-				);
-		}
+						}
+					}),
+			);
 	}
 }
 

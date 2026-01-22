@@ -11,7 +11,7 @@ created: {{now}}
 
 # {{title}}
 
-**Rating:** ⭐ {{rating}}/10
+**Rating:** {{rating}}/10
 **Genres:** {{genres}}
 **Runtime:** {{runtime}} minutes
 **Release Date:** {{release_date}}
@@ -44,7 +44,7 @@ created: "{{now}}"
 
 # {{title}}
 
-**Rating:** ⭐ {{rating}}/10
+**Rating:** {{rating}}/10
 **Genres:** {{genres}}
 **Release Date:** {{release_date}}
 **Type:** {{type}}
