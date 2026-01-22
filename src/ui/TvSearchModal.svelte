@@ -20,6 +20,11 @@
 	type SortBy = "Rating (High to Low)" | "Rating (Low to High)" | "Year (Newest)" | "Year (Oldest)" | "Title (A-Z)" | "Title (Z-A)";
 	type ViewMode = "list" | "grid";
 
+	interface Genre {
+		id: number;
+		name: string;
+	}
+
 	const getPosterUrl = _getPosterUrl;
 
 	function icon(node: HTMLElement, name: string) {
@@ -44,8 +49,13 @@
 	let viewMode: ViewMode = "list";
 	let debounceTimer: number | null = null;
 	let searchInput: HTMLInputElement;
+	let genres: Genre[] = [];
+	let selectedGenre = 0;
 
-	onMount(() => searchInput?.focus());
+	onMount(async () => {
+		searchInput?.focus();
+		await loadGenres();
+	});
 	
 	onDestroy(() => {
 		if (debounceTimer) {
@@ -53,13 +63,45 @@
 		}
 	});
 
-	$: filteredResults = filterAndSort(results, filter, sortBy);
+	$: filteredResults = filterAndSort(results, filter, sortBy, selectedGenre);
 
-	function filterAndSort(results: SearchResult[], filter: Filter, sortBy: SortBy): SearchResult[] {
-		const filtered = results.filter((result) =>
-			filter === "Movies" ? result.media_type === "movie" :
-			filter === "TV Shows" ? result.media_type === "tv" : true
-		);
+	async function loadGenres() {
+		const apiKey = settings.get("tmdbAccessToken");
+		if (!apiKey) return;
+
+		try {
+			const tmdb = new TMDB(apiKey);
+			const [movieGenres, tvGenres] = await Promise.all([
+				tmdb.genres.movies(),
+				tmdb.genres.tvShows(),
+			]);
+
+			const genreMap = new Map<number, string>();
+			for (const g of movieGenres.genres) genreMap.set(g.id, g.name);
+			for (const g of tvGenres.genres) {
+				if (!genreMap.has(g.id)) genreMap.set(g.id, g.name);
+			}
+
+			genres = Array.from(genreMap.entries())
+				.map(([id, name]) => ({ id, name }))
+				.sort((a, b) => a.name.localeCompare(b.name));
+		} catch (err) {
+			console.warn("Scout: Error loading genres:", err);
+		}
+	}
+
+	function filterAndSort(results: SearchResult[], filter: Filter, sortBy: SortBy, selectedGenre: number): SearchResult[] {
+		const filtered = results.filter((result) => {
+			const matchesType =
+				filter === "Movies" ? result.media_type === "movie" :
+				filter === "TV Shows" ? result.media_type === "tv" : true;
+
+			const matchesGenre =
+				selectedGenre === 0 ||
+				("genre_ids" in result && result.genre_ids?.includes(selectedGenre));
+
+			return matchesType && matchesGenre;
+		});
 
 		return filtered.sort((a, b) => {
 			const ratingA = getVoteAverageFromResult(a) ?? 0;
@@ -112,8 +154,8 @@
 
 	async function selectResult(res: SearchResult) {
 		const isMovie = res.media_type === "movie";
-		const templatePath = settings.get(isMovie ? "movieTemplateFilePath" : "tvTemplateFilePath");
-		const outputLocation = settings.get(isMovie ? "movieOutputLocation" : "tvOutputLocation");
+		const templatePath = settings.get(isMovie ? "movieTemplateFilePath" : "tvShowTemplateFilePath");
+		const outputLocation = settings.get(isMovie ? "movieOutputLocation" : "tvShowOutputLocation");
 		const apiKey = settings.get("tmdbAccessToken");
 
 		if (!outputLocation) {
@@ -163,38 +205,34 @@
 </script>
 
 <div class="scout-modal-content">
-	<div class="scout-search-row">
-		<input
-			type="text"
-			class="scout-search-input"
-			placeholder="Enter name..."
-			bind:value={searchQuery}
-			bind:this={searchInput}
-			on:input={handleSearchInput}
-		/>
+	<input
+		type="text"
+		class="scout-search-input"
+		placeholder="Enter movie or TV show title..."
+		bind:value={searchQuery}
+		bind:this={searchInput}
+		on:input={handleSearchInput}
+	/>
 
-		<button
-			class="view-mode-btn clickable-icon"
-			on:click={() => (viewMode = viewMode === "list" ? "grid" : "list")}
-			title={viewMode === "list" ? "Switch to grid view" : "Switch to list view"}
-			aria-label={viewMode === "list" ? "Switch to grid view" : "Switch to list view"}
-		>
-			<span use:icon={viewMode === "list" ? "grid" : "rows"}></span>
-		</button>
-	</div>
-
-	<div class="scout-controls">
+	<div class="scout-controls" style:margin-bottom={filteredResults.length > 0 ? "14px" : "0"}>
 		<label class="scout-label">
-			<span>Filter:</span>
 			<select bind:value={filter}>
-				<option value="All">All</option>
-				<option value="Movies">Movies</option>
-				<option value="TV Shows">TV Shows</option>
+				<option value="All">Movies & TV Shows</option>
+				<option value="Movies">Movies Only</option>
+				<option value="TV Shows">TV Shows Only</option>
 			</select>
 		</label>
 
 		<label class="scout-label">
-			<span>Sort:</span>
+			<select bind:value={selectedGenre}>
+				<option value={0}>All Genres</option>
+				{#each genres as genre}
+					<option value={genre.id}>{genre.name}</option>
+				{/each}
+			</select>
+		</label>
+
+		<label class="scout-label">
 			<select bind:value={sortBy}>
 				<option value="Rating (High to Low)">Rating (High to Low)</option>
 				<option value="Rating (Low to High)">Rating (Low to High)</option>
@@ -204,6 +242,15 @@
 				<option value="Title (Z-A)">Title (Z-A)</option>
 			</select>
 		</label>
+
+		<button
+			class="view-mode-btn"
+			on:click={() => (viewMode = viewMode === "list" ? "grid" : "list")}
+			title={viewMode === "list" ? "Switch to grid view" : "Switch to list view"}
+			aria-label={viewMode === "list" ? "Switch to grid view" : "Switch to list view"}
+		>
+			<span use:icon={viewMode === "list" ? "grid" : "rows"}></span>
+		</button>
 	</div>
 
 	<div class="scout-results-container">
@@ -263,28 +310,25 @@
 		padding: 0;
 	}
 
-	.scout-search-row {
-		display: flex;
-		gap: 12px;
-		align-items: center;
-		margin-bottom: 10px;
-	}
-
 	.scout-search-input {
-		flex: 1;
+		width: 100%;
+		background-color: var(--background-secondary);
+		font-size: 16px;
+		padding: 16px 12px;
+		margin-bottom: 10px;
 	}
 
 	.scout-controls {
 		display: flex;
-		gap: 16px;
+		gap: 12px;
 		align-items: center;
-		margin-bottom: 12px;
+		justify-content: space-between;
 	}
 
 	.scout-label {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		font-size: 12px;
 		color: var(--text-muted);
 	}
@@ -296,20 +340,7 @@
 	}
 
 	.view-mode-btn {
-		padding: 6px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid var(--background-modifier-border-hover);
-		background: var(--background-modifier-border);
-		border-radius: var(--radius-s);
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-
-	.view-mode-btn:hover {
-		background: var(--background-modifier-hover);
-		color: var(--text-normal);
+		padding: 8px;
 	}
 
 	.view-mode-btn span {
@@ -418,5 +449,6 @@
 		text-align: center;
 		padding: 40px 20px;
 		color: var(--text-muted);
+		margin-block-end: 0px;
 	}
 </style>

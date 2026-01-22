@@ -54,21 +54,27 @@ class FolderPickerModal extends FuzzySuggestModal<TFolder> {
 	}
 }
 
+type PathSettingKey =
+	| "movieTemplateFilePath"
+	| "movieOutputLocation"
+	| "tvShowTemplateFilePath"
+	| "tvShowOutputLocation";
+
 interface ScoutPluginSettings {
-	tvFeatures: boolean;
+	enableTvFeatures: boolean;
 	tmdbAccessToken?: string;
 	movieTemplateFilePath?: string;
 	movieOutputLocation?: string;
-	tvTemplateFilePath?: string;
-	tvOutputLocation?: string;
+	tvShowTemplateFilePath?: string;
+	tvShowOutputLocation?: string;
 }
 
 const DEFAULT_SETTINGS: ScoutPluginSettings = {
-	tvFeatures: true,
+	enableTvFeatures: true,
 	movieTemplateFilePath: "",
 	movieOutputLocation: "",
-	tvTemplateFilePath: "",
-	tvOutputLocation: "",
+	tvShowTemplateFilePath: "",
+	tvShowOutputLocation: "",
 };
 
 export class ScoutSettingTab extends PluginSettingTab {
@@ -89,9 +95,9 @@ export class ScoutSettingTab extends PluginSettingTab {
 			.setName("Enable TV Features")
 			.addToggle((toggle) =>
 				toggle
-					.setValue(this.settings.get("tvFeatures"))
+					.setValue(this.settings.get("enableTvFeatures"))
 					.onChange(async (value) => {
-						await this.settings.set("tvFeatures", value);
+						await this.settings.set("enableTvFeatures", value);
 						tvSettingsContainer.style.display = value
 							? "block"
 							: "none";
@@ -100,7 +106,9 @@ export class ScoutSettingTab extends PluginSettingTab {
 
 		tvSettingsContainer = containerEl.createDiv();
 
-		tvSettingsContainer.style.display = this.settings.get("tvFeatures")
+		tvSettingsContainer.style.display = this.settings.get(
+			"enableTvFeatures",
+		)
 			? "block"
 			: "none";
 
@@ -139,7 +147,7 @@ export class ScoutSettingTab extends PluginSettingTab {
 			"TV Show Template",
 			"Path to the TV show template file (relative to vault root)",
 			"e.g., templates/tv-template.md",
-			"tvTemplateFilePath",
+			"tvShowTemplateFilePath",
 			"file",
 		);
 
@@ -148,7 +156,7 @@ export class ScoutSettingTab extends PluginSettingTab {
 			"TV Show Location",
 			"Folder to create TV show files in (relative to vault root)",
 			"e.g., TV Shows",
-			"tvOutputLocation",
+			"tvShowOutputLocation",
 			"folder",
 		);
 	}
@@ -158,21 +166,22 @@ export class ScoutSettingTab extends PluginSettingTab {
 		name: string,
 		desc: string,
 		placeholder: string,
-		key:
-			| "movieTemplateFilePath"
-			| "movieOutputLocation"
-			| "tvTemplateFilePath"
-			| "tvOutputLocation",
+		key: PathSettingKey,
 		type: "file" | "folder",
 	) {
+		if (typeof this.settings.get(key) !== "string") {
+			return;
+		}
+
 		let inputEl: HTMLInputElement;
+
 		new Setting(container)
 			.setName(name)
 			.setDesc(desc)
 			.addText((text) => {
 				inputEl = text.inputEl;
 				text.setPlaceholder(placeholder)
-					.setValue(this.settings.get(key) || "")
+					.setValue(this.settings.get(key) as string)
 					.onChange((value) => this.settings.set(key, value));
 			})
 			.addButton((btn) =>
