@@ -16,6 +16,8 @@ export interface TemplateData {
 	poster: string;
 	type: "movie" | "tv";
 	release_date?: string;
+	number_of_seasons?: number;
+	number_of_episodes?: number;
 	id: number;
 	now: string; // YYYY-MM-DD
 }
@@ -45,8 +47,11 @@ export function getYearFromResult(result: SearchResult): number | undefined {
 	return Number.isNaN(y) ? undefined : y;
 }
 
+const DEFAULT_POSTER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="750" viewBox="0 0 500 750"><rect fill="#e6e6e6" width="100%" height="100%"/><g fill="#9b9b9b" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial" font-weight="600"><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="48">No Image</text></g></svg>`;
+const DEFAULT_POSTER = `data:image/svg+xml;utf8,${encodeURIComponent(DEFAULT_POSTER_SVG)}`;
+
 export function getPosterUrl(path?: string | null, size = "w500"): string {
-	return path ? `https://image.tmdb.org/t/p/${size}${path}` : "";
+	return path ? `https://image.tmdb.org/t/p/${size}${path}` : DEFAULT_POSTER;
 }
 
 export function getPosterUrlFromResult(
@@ -118,6 +123,16 @@ export function buildTemplateData(
 		poster,
 		type: result.media_type === "tv" ? "tv" : "movie",
 		release_date: release_date || undefined,
+		number_of_seasons:
+			"number_of_seasons" in details &&
+			typeof (details as any).number_of_seasons === "number"
+				? (details as any).number_of_seasons
+				: undefined,
+		number_of_episodes:
+			"number_of_episodes" in details &&
+			typeof (details as any).number_of_episodes === "number"
+				? (details as any).number_of_episodes
+				: undefined,
 		id: typeof result.id === "number" ? result.id : Number(result.id),
 		now: new Date().toISOString().split("T")[0],
 	};

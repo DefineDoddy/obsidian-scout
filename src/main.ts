@@ -1,6 +1,7 @@
 import { Notice, Plugin } from "obsidian";
 import { ScoutSettings } from "./settings";
 import { tvSearch } from "./commands/tvSearch";
+import { bookSearch } from "./commands/bookSearch";
 
 export default class ScoutPlugin extends Plugin {
 	settings = new ScoutSettings(this.app, this);
@@ -16,6 +17,12 @@ export default class ScoutPlugin extends Plugin {
 			id: "search-movies-tv",
 			name: "Search for Movies/TV Shows",
 			callback: () => tvSearch(this.app, this.settings),
+		});
+
+		this.addCommand({
+			id: "search-books",
+			name: "Search for Books",
+			callback: () => bookSearch(this.app, this.settings),
 		});
 
 		this.addCommand({

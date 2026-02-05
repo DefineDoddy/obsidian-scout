@@ -1,69 +1,70 @@
 export const MOVIE_TEMPLATE = `---
-type: movie
 title: "{{title}}"
-rating: {{rating}}
-genres: "{{genres}}"
-runtime: {{runtime}}
-poster: "{{poster}}"
+type: movie
+status: To Watch
+rating:
+genres: [{{genres}}]
 release_date: "{{release_date}}"
+runtime: {{runtime}}
+tmdb_rating: {{rating}}
+poster: "{{poster}}"
 created: {{now}}
 ---
 
-# {{title}}
+## Overview
+
+{{overview}}
+
+## Information
 
 **Rating:** {{rating}}/10
 **Genres:** {{genres}}
 **Runtime:** {{runtime}} minutes
 **Release Date:** {{release_date}}
-**Type:** {{type}}
 
-![Poster]({{poster}})
+## Thoughts
 
-## Overview
-{{overview}}
 
-## My Notes
-- Watched:
-- Rating:
-- Thoughts:
 
-## Links
+## Resources
+
 - [TMDB Page](https://www.themoviedb.org/{{type}}/{{id}})
 
 `;
 
 export const TV_TEMPLATE = `---
-type: tv
 title: "{{title}}"
-rating: "{{rating}}"
-genres: "{{genres}}"
+type: tv
+status: To Watch
+rating:
+tmdb_rating: {{rating}}
+genres: [{{genres}}]
+first_air_date: "{{release_date}}"
+runtime: {{runtime}}
+seasons: {{number_of_seasons}}
+episodes: {{number_of_episodes}}
 poster: "{{poster}}"
-release_date: "{{release_date}}"
-created: "{{now}}"
+created: {{now}}
 ---
 
-# {{title}}
+## Overview
+
+{{overview}}
+
+## Information
 
 **Rating:** {{rating}}/10
 **Genres:** {{genres}}
-**Release Date:** {{release_date}}
-**Type:** {{type}}
+**Runtime:** {{runtime}} minutes
+**First Air Date:** {{release_date}}
+**Seasons:** {{number_of_seasons}}
+**Episodes:** {{number_of_episodes}}
 
-![Poster]({{poster}})
+## Thoughts
 
-## Overview
-{{overview}}
 
-## Seasons & Episodes
-- Seasons:
-- Episodes:
+## Resources
 
-## My Notes
-- Watching:
-- Rating:
-- Thoughts:
-
-## Links
 - [TMDB Page](https://www.themoviedb.org/{{type}}/{{id}})
 
 `;

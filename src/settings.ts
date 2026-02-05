@@ -58,23 +58,36 @@ type PathSettingKey =
 	| "movieTemplateFilePath"
 	| "movieOutputLocation"
 	| "tvShowTemplateFilePath"
-	| "tvShowOutputLocation";
+	| "tvShowOutputLocation"
+	| "bookTemplateFilePath"
+	| "bookOutputLocation";
 
 interface ScoutPluginSettings {
 	enableTvFeatures: boolean;
+	enableBookFeatures: boolean;
 	tmdbAccessToken?: string;
 	movieTemplateFilePath?: string;
 	movieOutputLocation?: string;
 	tvShowTemplateFilePath?: string;
 	tvShowOutputLocation?: string;
+	bookTemplateFilePath?: string;
+	bookOutputLocation?: string;
+	// Persist the last selected view mode in the search modal ("list" or "grid")
+	lastViewMode?: "list" | "grid";
+	lastBookViewMode?: "list" | "grid";
 }
 
 const DEFAULT_SETTINGS: ScoutPluginSettings = {
 	enableTvFeatures: true,
+	enableBookFeatures: true,
 	movieTemplateFilePath: "",
 	movieOutputLocation: "",
 	tvShowTemplateFilePath: "",
 	tvShowOutputLocation: "",
+	bookTemplateFilePath: "",
+	bookOutputLocation: "",
+	lastViewMode: "list",
+	lastBookViewMode: "list",
 };
 
 export class ScoutSettingTab extends PluginSettingTab {
@@ -90,6 +103,7 @@ export class ScoutSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		let tvSettingsContainer: HTMLDivElement;
+		let bookSettingsContainer: HTMLDivElement;
 
 		new Setting(containerEl)
 			.setName("Enable TV Features")
@@ -157,6 +171,44 @@ export class ScoutSettingTab extends PluginSettingTab {
 			"Folder to create TV show files in (relative to vault root)",
 			"e.g., TV Shows",
 			"tvShowOutputLocation",
+			"folder",
+		);
+
+		new Setting(containerEl)
+			.setName("Enable Book Features")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.settings.get("enableBookFeatures"))
+					.onChange(async (value) => {
+						await this.settings.set("enableBookFeatures", value);
+						bookSettingsContainer.style.display = value
+							? "block"
+							: "none";
+					}),
+			);
+
+		bookSettingsContainer = containerEl.createDiv();
+		bookSettingsContainer.style.display = this.settings.get(
+			"enableBookFeatures",
+		)
+			? "block"
+			: "none";
+
+		this.addPathSetting(
+			bookSettingsContainer,
+			"Book Template",
+			"Path to the book template file (relative to vault root)",
+			"e.g., templates/book-template.md",
+			"bookTemplateFilePath",
+			"file",
+		);
+
+		this.addPathSetting(
+			bookSettingsContainer,
+			"Book Location",
+			"Folder to create book files in (relative to vault root)",
+			"e.g., Books",
+			"bookOutputLocation",
 			"folder",
 		);
 	}
