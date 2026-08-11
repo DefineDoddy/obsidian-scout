@@ -36,7 +36,9 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
-	outdir: prod ? "dist" : ".",
+	// Always build to the plugin root: Obsidian loads main.js from there, so a
+	// production build that only wrote to dist/ left the installed plugin stale.
+	outdir: ".",
 	minify: prod,
 	loader: {
 		".ts": "ts",
@@ -47,7 +49,11 @@ const context = await esbuild.context({
 
 if (prod) {
 	await context.rebuild();
-	fs.copyFileSync("manifest.json", "dist/manifest.json");
+	// Mirror the release artifacts into dist/ for uploading to GitHub.
+	fs.mkdirSync("dist", { recursive: true });
+	for (const file of ["main.js", "manifest.json", "styles.css"]) {
+		if (fs.existsSync(file)) fs.copyFileSync(file, `dist/${file}`);
+	}
 	process.exit(0);
 } else {
 	await context.watch();

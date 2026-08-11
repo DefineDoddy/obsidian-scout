@@ -1,0 +1,1597 @@
+/* Scout — all plugin styling.
+ *
+ * Obsidian loads this file automatically from the plugin folder. It lives here
+ * rather than inside a React `<style>` element so the settings tab and the
+ * workspace view are covered too, not just whatever modal happens to be open.
+ *
+ * Every colour is an Obsidian variable, so Scout follows the user's theme
+ * instead of imposing one.
+ */
+
+/* ============================================================== primitives */
+
+/* Two radii, used everywhere, so nothing lands between a box and a pill:
+   panels, cards, inputs, and buttons take the first; anything shaped like a
+   tag or a toggle takes the second. */
+.scout-modal,
+.scout-detail-modal,
+.scout-library,
+.scout-settings {
+	--scout-radius: 6px;
+	--scout-pill: 999px;
+	/* One height for every control anywhere in the plugin — the selects, the
+	   buttons, the segmented groups. Set to what a themed button comes out at,
+	   so Scout's own controls sit level with Obsidian's. */
+	--scout-control-h: 30px;
+	/* The height of a segment inside one of those groups. */
+	--scout-segment-h: 26px;
+	/* Ease-out-expo: fast off the mark, settles without overshooting, which is
+	   what makes a hover read as immediate rather than as an animation. */
+	--scout-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Named for a screen reader, invisible to everyone else. Used instead of
+   `aria-label` on controls Obsidian would otherwise attach a tooltip to. */
+.scout-sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+.scout-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 0;
+}
+
+.scout-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 8px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 11px;
+	white-space: nowrap;
+}
+.scout-chip-kind {
+	background: var(--background-modifier-border-hover);
+	text-transform: capitalize;
+}
+.scout-chip-owned {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+/* ---------------------------------------------------------------- statuses */
+
+/* Colour carries the meaning, the glyph confirms it, and both come from the
+   tone the config sorts the user's own word into. */
+.scout-status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	color: var(--scout-tone, var(--text-muted));
+}
+.scout-status-badge .scout-status-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scout-status-badge .scout-icon,
+.scout-status-badge .scout-ring {
+	flex: 0 0 auto;
+}
+
+/* Prefixed rather than `.is-active` and friends: those are common enough words
+   that they collided with unrelated state classes elsewhere in this sheet. */
+.scout-t-planned {
+	--scout-tone: var(--text-muted);
+}
+.scout-t-active {
+	--scout-tone: var(--color-blue, #4a8fe0);
+}
+.scout-t-done {
+	--scout-tone: var(--color-green, #3aa675);
+}
+.scout-t-paused {
+	--scout-tone: var(--color-orange, #d9a441);
+}
+.scout-t-dropped {
+	--scout-tone: var(--color-red, #c9564f);
+}
+
+.scout-ring-track {
+	stroke: currentColor;
+	opacity: 0.28;
+}
+.scout-ring-fill {
+	stroke: currentColor;
+}
+
+.scout-chip-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 1px 9px 1px 7px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--background-modifier-border-hover);
+	font-size: 11px;
+}
+.scout-count {
+	margin-inline-start: 6px;
+	opacity: 0.55;
+	font-variant-numeric: tabular-nums;
+	font-size: 0.9em;
+}
+
+/* A link that happens to be a button. The theme's own button styling — a grey
+   plate, a shadow, and 12px of padding — made it a control competing with the
+   text it belongs to. Every declaration here is undoing one of those. */
+.scout-link-button,
+.scout-link-button:hover {
+	background: none;
+	border: none;
+	box-shadow: none;
+	padding: 0 4px;
+	height: auto;
+	line-height: 1.4;
+	color: var(--text-accent);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+}
+.scout-link-button:hover {
+	text-decoration: underline;
+	color: var(--text-accent-hover, var(--text-accent));
+}
+
+.scout-danger:hover {
+	background: var(--background-modifier-error) !important;
+	color: var(--text-on-accent);
+}
+
+.scout-message {
+	text-align: center;
+	padding: 32px 20px;
+	color: var(--text-muted);
+	margin-block-end: 0;
+}
+.scout-error {
+	color: var(--text-error);
+}
+
+/* Covers, shared by results, cards, and the detail hero. */
+/* One radius for artwork, and the same one the cards use. Cover corners cut a
+   shade tighter than the card around them read as a mistake rather than as a
+   nested shape. */
+.scout-cover {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+}
+.scout-cover-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--background-modifier-border);
+	color: var(--text-faint);
+	font-weight: 600;
+	letter-spacing: 1px;
+}
+
+/* ================================================================= ratings */
+
+.scout-rating {
+	display: inline-flex;
+	align-items: center;
+	gap: 1px;
+}
+.scout-rating-slot {
+	position: relative;
+	display: inline-flex;
+	line-height: 0;
+}
+.scout-rating-glyph {
+	position: relative;
+	display: inline-block;
+	overflow: hidden;
+}
+.scout-rating-glyph svg {
+	display: block;
+}
+.scout-rating-glyph svg.is-track path {
+	fill: var(--background-modifier-border-hover);
+}
+.scout-rating-glyph svg.is-filled path {
+	fill: var(--text-accent);
+}
+.scout-rating-fill {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+	overflow: hidden;
+	line-height: 0;
+}
+/* Scoped through the parent so these beat the theme's own `button` rules —
+   at one class they lost, and the buttons painted over the icons. */
+.scout-rating .scout-rating-hit,
+.scout-rating .scout-rating-hit:hover,
+.scout-rating .scout-rating-hit:active {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
+	appearance: none;
+	cursor: pointer;
+}
+.scout-rating-value {
+	margin-inline-start: 6px;
+	font-size: 12px;
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+.scout-rating-numeric input {
+	width: 5em;
+}
+.scout-rating-scale {
+	margin-inline-start: 4px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+/* "8/10" beside the icons reads as one number, so it keeps no gap and sits
+   back a little from the score itself. */
+.scout-rating-value .scout-rating-scale,
+.scout-rating-entry .scout-rating-scale {
+	margin-inline-start: 0;
+	opacity: 0.65;
+}
+
+/* The exact-entry box, for scales the five icons cannot land on precisely.
+   Styled as the readout it replaces rather than as a form field: a bordered
+   input beside the stars looked like a second, competing control. */
+.scout-rating-entry {
+	display: inline-flex;
+	align-items: baseline;
+	margin-inline-start: 7px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.scout-rating-entry input[type="number"] {
+	width: 3.4em;
+	height: auto;
+	padding: 1px 4px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	font-size: 12px;
+	text-align: end;
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+.scout-rating-entry input[type="number"]:hover {
+	border-color: var(--background-modifier-border);
+}
+.scout-rating-entry input[type="number"]:focus {
+	border-color: var(--background-modifier-border-focus, var(--interactive-accent));
+	background: var(--background-primary);
+}
+
+/* ============================================================ search modal */
+
+.scout-modal .modal-close-button {
+	top: 16px;
+	inset-inline-end: 16px !important;
+}
+.scout-modal .modal-header {
+	margin-bottom: 16px;
+}
+.scout-modal-content {
+	padding: 0;
+}
+
+.scout-search-input {
+	width: 100%;
+	background-color: var(--background-secondary);
+	font-size: 16px;
+	padding: 14px 12px;
+	margin-bottom: 10px;
+}
+
+.scout-controls {
+	display: flex;
+	gap: 8px;
+	align-items: stretch;
+	margin-bottom: 14px;
+}
+/* Share the row evenly rather than each sizing to its own label, which
+   left a ragged gap before the view toggle. */
+.scout-controls select {
+	flex: 1 1 0;
+	min-width: 0;
+	font-size: 12px;
+	text-overflow: ellipsis;
+}
+
+.scout-view-toggle {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	padding: 0;
+	border-radius: var(--scout-radius, 6px);
+}
+.scout-controls select,
+.scout-view-toggle {
+	height: var(--scout-control-h, 30px);
+	box-sizing: border-box;
+}
+.scout-modal input.scout-search-input,
+.scout-controls select {
+	border-radius: var(--scout-radius, 6px);
+}
+
+.scout-results-container {
+	max-height: 55vh;
+	overflow-y: auto;
+	padding-inline-end: 8px;
+}
+
+/* Hover wants to land, not fade in. Short duration and a decelerating curve,
+   so the response arrives with the pointer. */
+.scout-result {
+	position: relative;
+	background: var(--background-secondary);
+	border-radius: var(--scout-radius, 6px);
+	cursor: pointer;
+	transition: background 70ms var(--scout-ease);
+}
+.scout-result:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-result:active {
+	background: var(--background-modifier-active-hover, var(--background-modifier-border));
+	transition-duration: 30ms;
+}
+@media (prefers-reduced-motion: reduce) {
+	.scout-result,
+	.scout-entry {
+		transition-duration: 0ms;
+	}
+}
+.scout-result:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+.scout-result.is-busy {
+	opacity: 0.5;
+	pointer-events: none;
+}
+.scout-result.is-owned {
+	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+}
+
+.scout-result h3 {
+	margin: 0 0 4px 0;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.3;
+}
+.scout-result p {
+	margin: 2px 0;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.scout-result-desc {
+	font-size: 12px;
+	opacity: 0.8;
+}
+
+.scout-result-art-wrap {
+	position: relative;
+	flex-shrink: 0;
+}
+.scout-owned-badge {
+	position: absolute;
+	top: 4px;
+	inset-inline-end: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.scout-owned-badge svg {
+	width: 13px;
+	height: 13px;
+}
+
+/* A round accent button the size of the owned tick opposite it, so the two
+   badges on a poster are the same object at different states. Left to the
+   theme it came out as a tall lozenge taller than the artwork's padding. */
+.scout-quick-add {
+	position: absolute;
+	bottom: 6px;
+	inset-inline-end: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	box-sizing: border-box;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+.scout-quick-add:hover {
+	background: var(--interactive-accent-hover, var(--interactive-accent));
+}
+.scout-result:hover .scout-quick-add,
+.scout-quick-add:focus-visible {
+	opacity: 1;
+}
+/* Onto the poster in the grid, opposite corner from the owned tick, clearing
+   the card's own padding. */
+.scout-results-grid .scout-quick-add {
+	top: 15px;
+	inset-inline-start: 15px;
+	bottom: auto;
+	inset-inline-end: auto;
+}
+
+/* List layout */
+.scout-results-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.scout-results-list .scout-result {
+	display: flex;
+	gap: 12px;
+	padding: 10px;
+}
+.scout-results-list .scout-result-art-wrap {
+	width: 56px;
+	height: 84px;
+}
+.scout-results-list .scout-result-info {
+	flex: 1;
+	min-width: 0;
+}
+
+/* Grid layout */
+.scout-results-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	gap: 12px;
+}
+.scout-results-grid .scout-result {
+	display: flex;
+	flex-direction: column;
+	padding: 9px;
+	text-align: center;
+}
+.scout-results-grid .scout-result-art-wrap {
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	margin-bottom: 8px;
+	border-radius: var(--scout-radius, 6px);
+	overflow: hidden;
+	background: var(--background-primary);
+}
+.scout-results-grid .scout-result h3 {
+	font-size: 13px;
+	line-height: 1.4;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ============================================================ detail dialog */
+
+.scout-detail-modal {
+	max-width: 680px;
+}
+.scout-detail-modal .modal-header {
+	margin-bottom: 0;
+}
+
+/* Two columns, and only the hero is in them.
+   Floating the cover let the synopsis wrap around it, which turned a paragraph
+   into an L-shape that started mid-dialog and finished at the margin. The
+   synopsis now runs full width below, where it reads as a paragraph. */
+.scout-detail-hero {
+	display: flex;
+	align-items: flex-start;
+	gap: 18px;
+}
+.scout-detail-cover {
+	flex: 0 0 118px;
+	width: 118px;
+	aspect-ratio: 2 / 3;
+	border-radius: var(--scout-radius, 6px);
+	box-shadow:
+		0 2px 10px rgba(0, 0, 0, 0.3),
+		inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.scout-detail-head {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+/* A real step down to the 12px meta line under it. At 21px against 12px the
+   two were close enough to read as one block of text. */
+.scout-detail-head h2 {
+	margin: 0 0 2px;
+	font-size: 25px;
+	font-weight: 650;
+	line-height: 1.15;
+	letter-spacing: -0.015em;
+}
+.scout-detail-subtitle {
+	margin: 0 0 6px;
+	color: var(--text-muted);
+	font-size: 13px;
+	font-style: italic;
+}
+/* A single line of quiet facts, dot-separated, instead of a stack of chips. */
+.scout-detail-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 9px;
+	margin: 5px 0 0;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+/* The separator belongs to the line, not to the word after it — inheriting the
+   colour put an accent-coloured dot in front of "In your library". */
+.scout-detail-meta > span + span::before {
+	content: "·";
+	margin-inline-end: 9px;
+	color: var(--text-faint);
+	opacity: 0.85;
+}
+/* Not yet out. Worth a colour, since it is the one fact that dates. */
+.scout-detail-soon {
+	color: var(--text-accent);
+}
+.scout-detail-owned {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--text-accent);
+}
+.scout-detail-genres {
+	margin: 3px 0 0;
+	font-size: 12px;
+	color: var(--text-faint);
+}
+.scout-detail-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 14px;
+}
+/* One height for the whole row. Left to themselves the icon buttons sized to
+   their glyph and the text buttons to their text, so no two matched. */
+.scout-detail-actions button,
+.scout-detail-actions .scout-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: var(--scout-control-h, 30px);
+	padding: 0 13px;
+	box-sizing: border-box;
+	/* Themes vary from square to fully round; pinning it keeps the row
+	   consistent with the inputs and cards next to it. */
+	border-radius: var(--scout-radius, 6px);
+	font-size: 13px;
+	line-height: 1;
+}
+/* The one exception, and deliberately so: a round button among square ones
+   reads as a different kind of action, which is what it is. */
+.scout-detail-actions .scout-fav {
+	width: var(--scout-control-h, 30px);
+	height: var(--scout-control-h, 30px);
+	padding: 0;
+	margin-inline-start: 2px;
+	border-radius: 50%;
+}
+.scout-detail-actions .scout-button {
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	box-shadow: var(--input-shadow);
+	text-decoration: none;
+}
+.scout-detail-actions .scout-button:hover {
+	background: var(--interactive-hover);
+}
+
+.scout-detail-description {
+	margin: 18px 0 0;
+	font-size: 14px;
+	line-height: 1.55;
+}
+.scout-detail-description p {
+	margin: 0;
+}
+/* Its own line under the text. Inline, it sat wherever the last sentence
+   happened to stop, and the whole paragraph reflowed around it on each click. */
+.scout-detail-description .scout-link-button {
+	display: inline-block;
+	margin-top: 4px;
+	padding: 0;
+}
+.scout-detail-people {
+	margin: 14px 0 0;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--text-muted);
+}
+.scout-detail-people strong {
+	margin-inline-end: 5px;
+	font-weight: 600;
+	color: var(--text-faint);
+}
+.scout-detail-hint {
+	margin-top: 16px;
+	padding: 12px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 13px;
+	text-align: center;
+}
+
+/* ============================================================ manage panel */
+
+/* No plate. A panel inside a dialog is a card inside a card, and the grey box
+   was doing nothing a rule and some space could not do better. The labels
+   recede into a quiet column so the controls are what you actually see. */
+.scout-manage {
+	margin-top: 22px;
+	padding-top: 18px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+/* A grid, not a wrapping flex row. The status control is the widest thing in
+   the panel, and as a flex item it pushed itself onto a line of its own —
+   which is why its label sat above it while every other label sat beside. A
+   column keeps the label where it belongs whatever the control does. */
+.scout-manage-row {
+	display: grid;
+	grid-template-columns: 92px minmax(0, 1fr);
+	align-items: center;
+	gap: 14px;
+	padding: 6px 0;
+}
+/* Sentence case, same reasoning as the group headings: the column position and
+   the grey already say "this is a label". */
+.scout-manage-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-faint);
+}
+/* One height for every control in the panel — the date fields, the selects,
+   the stepper, and the status buttons all sat at slightly different sizes. */
+.scout-manage-control input,
+.scout-manage-control select {
+	height: var(--scout-control-h, 28px);
+	box-sizing: border-box;
+}
+.scout-manage-control .scout-stepper,
+.scout-manage .scout-status-group {
+	min-height: var(--scout-control-h, 28px);
+	box-sizing: border-box;
+}
+.scout-manage-control input[type="checkbox"] {
+	height: auto;
+}
+.scout-manage-control {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+/* A round button, not a rounded rectangle: equal width and height, and the
+   theme's own radius overridden so it cannot come out as a lozenge. */
+.scout-fav {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--scout-control-h, 28px);
+	height: var(--scout-control-h, 28px);
+	padding: 0;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	color: var(--text-muted);
+}
+/* Not the accent: the stars beside it are already accent-coloured, and two
+   different things in one colour read as one thing. */
+.scout-fav.is-on {
+	color: var(--color-pink, var(--color-red, #d9536f));
+}
+.scout-fav:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-fav.is-on svg {
+	fill: currentColor;
+}
+
+/* A single segmented control rather than five loose pills of different widths,
+   which is what made the row look ragged.
+
+   Sized to its own content, never to the column: `justify-self` is what stops
+   a three-status note showing two statuses' worth of empty plate beside them.
+   Because that sizing is fit-content, the same rule also lets the group wrap
+   when the dialog is too narrow for one line — and a wrapped row is neat
+   rather than ragged, since the segments grow to fill whatever line they land
+   on. Truncating them instead is what hid half of every word.
+
+   None of this can put the label back above the control: the row is a grid, so
+   the label holds its own column however tall this gets. */
+.scout-status-group {
+	display: flex;
+	flex-wrap: wrap;
+	justify-self: start;
+	max-width: 100%;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-modifier-border);
+}
+/* Every segment the same height as every other button in the panel, set once
+   here rather than emerging from whatever padding and glyph each one holds. */
+.scout-status {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	height: var(--scout-segment-h, 26px);
+	padding: 0 10px 0 8px;
+	box-sizing: border-box;
+	/* Grows into a wrapped line, never shrinks below its own word. */
+	min-width: 0;
+	flex: 1 0 auto;
+	font-size: 12px;
+	line-height: 1;
+	border-radius: calc(var(--scout-radius, 6px) - 2px);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+}
+/* Unselected, only the glyph is tinted; selecting one floods the whole
+   button with its tone, so which shelf you are on is unmissable. */
+.scout-status .scout-icon,
+.scout-status .scout-ring {
+	color: var(--scout-tone, var(--text-faint));
+}
+.scout-status:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-status.is-on {
+	background: var(--scout-tone, var(--interactive-accent));
+	color: var(--text-on-accent);
+}
+.scout-status.is-on .scout-icon,
+.scout-status.is-on .scout-ring {
+	color: inherit;
+}
+.scout-status.scout-t-planned.is-on {
+	background: var(--interactive-accent);
+}
+.scout-status.is-foreign {
+	font-style: italic;
+}
+/* The word gives way before the glyph does, so a squeezed row still says which
+   shelf each segment is. */
+.scout-status-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The many-statuses form: the same tinted glyph, then the list. */
+.scout-status-picker {
+	gap: 7px;
+}
+.scout-status-picker .scout-icon,
+.scout-status-picker .scout-ring {
+	color: var(--scout-tone, var(--text-faint));
+	flex: 0 0 auto;
+}
+.scout-status-picker select {
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 240px;
+}
+
+.scout-progress {
+	gap: 10px;
+}
+/* Minus, value, and plus read as one control. */
+.scout-stepper {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px;
+	gap: 2px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-modifier-border);
+}
+.scout-stepper button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: var(--scout-segment-h, 26px);
+	padding: 0;
+	box-sizing: border-box;
+	border-radius: calc(var(--scout-radius, 6px) - 2px);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+}
+.scout-stepper button:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-stepper button:disabled {
+	opacity: 0.4;
+}
+.scout-stepper input[type="number"] {
+	width: 3.6em;
+	height: var(--scout-segment-h, 26px);
+	padding: 0 4px;
+	border: none;
+	border-radius: calc(var(--scout-radius, 6px) - 2px);
+	background: var(--background-primary);
+	text-align: center;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+/* Inside the plate, because "3 of 354" is one fact. Left outside it, the total
+   floated between the stepper and the bar belonging to neither. */
+.scout-stepper-total {
+	display: inline-flex;
+	align-items: center;
+	height: var(--scout-segment-h, 26px);
+	padding: 0 9px 0 5px;
+	color: var(--text-muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.scout-progress-percent {
+	color: var(--text-muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+/* Capped: stretched across the dialog it was the loudest thing in the panel,
+   and a bar that long says nothing a short one does not. */
+.scout-progress-bar {
+	flex: 0 1 160px;
+	min-width: 60px;
+	height: 5px;
+	border-radius: 3px;
+	background: var(--background-modifier-border);
+	overflow: hidden;
+}
+.scout-progress-bar > span {
+	display: block;
+	height: 100%;
+	background: var(--interactive-accent);
+}
+
+.scout-date-row {
+	gap: 14px;
+}
+.scout-date-row label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.scout-date-row input {
+	font-size: 12px;
+}
+
+.scout-thoughts {
+	margin-top: 12px;
+}
+.scout-thoughts-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: 4px;
+}
+.scout-thoughts-state {
+	font-size: 11px;
+	color: var(--text-faint);
+}
+.scout-thoughts textarea {
+	width: 100%;
+	min-height: 104px;
+	resize: vertical;
+	border-radius: var(--scout-radius, 6px);
+	font-size: 13px;
+	line-height: 1.55;
+}
+.scout-date-row input,
+.scout-manage-control input[type="text"],
+.scout-manage-control input[type="number"],
+.scout-manage-control select {
+	border-radius: var(--scout-radius, 6px);
+}
+
+/* =============================================================== library */
+
+.scout-library-container {
+	padding: 0;
+	overflow: hidden;
+}
+.scout-library {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 12px 16px 0;
+	gap: 10px;
+}
+
+.scout-library-toolbar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+.scout-search-wrap {
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+}
+.scout-search-wrap > .scout-icon {
+	position: absolute;
+	inset-inline-start: 9px;
+	color: var(--text-faint);
+	pointer-events: none;
+}
+.scout-search-wrap > .scout-icon svg {
+	width: 15px;
+	height: 15px;
+}
+/* Specific enough to beat the theme's `input[type="text"]` padding, which
+   otherwise wins over a lone class and lets the text run under the icon. */
+.scout-search-wrap input.scout-library-search {
+	width: 100%;
+	padding-inline-start: 32px;
+}
+.scout-clear {
+	position: absolute;
+	inset-inline-end: 4px;
+	padding: 2px 4px;
+	background: none;
+	box-shadow: none;
+	color: var(--text-faint);
+}
+.scout-add {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	flex: 0 0 auto;
+	border-radius: var(--scout-radius, 6px);
+}
+/* Themes disagree wildly on button radius; the toolbar reads as one strip
+   only if the field, the button, and the toggle agree. */
+.scout-search-wrap input.scout-library-search,
+.scout-empty button {
+	border-radius: var(--scout-radius, 6px);
+}
+
+/* The toolbar reads as one strip only if the field, the button, and the toggle
+   all stand at the same height — which none of them did, each sizing itself to
+   its own padding and content. */
+.scout-search-wrap input.scout-library-search,
+.scout-add,
+.scout-layout-toggle {
+	height: var(--scout-control-h, 30px);
+	box-sizing: border-box;
+}
+.scout-layout-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-modifier-border);
+}
+.scout-layout-toggle button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: var(--scout-segment-h, 26px);
+	padding: 0;
+	box-sizing: border-box;
+	border-radius: calc(var(--scout-radius, 6px) - 2px);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+}
+.scout-layout-toggle button.is-on {
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.scout-library-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+}
+.scout-kind-pills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	/* Pushed to the trailing edge of the row it shares with the selects. */
+	margin-inline-start: auto;
+}
+.scout-kind-pills button {
+	padding: 3px 11px;
+	font-size: 12px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+.scout-kind-pills button:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-kind-pills button.is-on {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.scout-filter-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+}
+/* One height across the row. The selects sized themselves and the buttons
+   sized themselves, and the two never agreed. */
+.scout-filter-controls select,
+.scout-filter-controls .scout-toggle,
+.scout-filter-controls .scout-reset {
+	height: var(--scout-control-h, 28px);
+	box-sizing: border-box;
+	border-radius: var(--scout-radius, 6px);
+}
+.scout-filter-controls select {
+	font-size: 12px;
+	max-width: 170px;
+}
+/* Square, sized to the row rather than to the heart inside it. */
+.scout-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--scout-control-h, 28px);
+	padding: 0;
+	color: var(--text-muted);
+}
+.scout-toggle.is-on {
+	color: var(--text-accent);
+}
+.scout-toggle.is-on svg {
+	fill: currentColor;
+}
+
+/* A button, not a link: it sits in a row of buttons, and underlining it on
+   hover made it look like it would navigate somewhere. */
+.scout-reset {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 12px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+	cursor: pointer;
+}
+.scout-reset:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.scout-stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14px;
+	padding: 6px 0;
+	font-size: 12px;
+	color: var(--text-muted);
+	border-block: 1px solid var(--background-modifier-border);
+}
+.scout-stats strong {
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+.scout-library-body {
+	flex: 1;
+	overflow-y: auto;
+	padding-bottom: 24px;
+}
+.scout-group + .scout-group {
+	margin-top: 18px;
+}
+/* Sentence case. Small caps on a heading that is already short, already grey,
+   and already set apart by space was two signals doing one job. */
+.scout-group-title {
+	margin: 0 0 8px;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+/* Each card is its own height. Grid stretches items to the tallest in the row
+   by default, which is what put a band of dead space under the cards with no
+   rating to show. */
+.scout-entries-grid {
+	display: grid;
+	align-items: start;
+	gap: 14px;
+}
+.scout-entries-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.scout-entry {
+	cursor: pointer;
+	border-radius: var(--scout-radius, 6px);
+	/* Short enough to feel like a response to the pointer rather than an
+	   animation of one, on a curve that arrives fast and settles. */
+	transition: background 70ms var(--scout-ease);
+}
+.scout-entry:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+/* A plain card whose background lifts on hover. Nothing moves, nothing
+   scales: the plate brightens the moment the pointer lands and drops back
+   just as fast. */
+.scout-entries-grid .scout-entry {
+	display: flex;
+	flex-direction: column;
+	padding: 9px;
+	background: var(--background-secondary);
+}
+.scout-entries-grid .scout-entry:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-entries-grid .scout-entry:active {
+	background: var(--background-modifier-active-hover, var(--background-modifier-border));
+	transition-duration: 30ms;
+}
+.scout-entries-grid .scout-entry-art {
+	position: relative;
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	margin-bottom: 8px;
+	border-radius: var(--scout-radius, 6px);
+	overflow: hidden;
+	background: var(--background-primary);
+}
+
+/* Every card is the same height: two lines are reserved for the title whether
+   it needs them or not, and nothing below is pushed anywhere. Pinning the
+   rating to the bottom instead is what left the hole under short titles. */
+.scout-entries-grid .scout-entry-info {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+/* One line, truncated.
+   Reserving two lines is what created the gap, whichever end of the box the
+   text was pushed to. With one line every card is the same height, nothing
+   is reserved, and the ratings line up across the whole grid. The full title
+   is a hover away and is the heading of the dialog. */
+.scout-entries-grid .scout-entry h4 {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.4;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scout-entry-meta {
+	margin: 0;
+	font-size: 11px;
+	color: var(--text-faint);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scout-entry-foot {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+/* Nothing to show, nothing to occupy — an unrated card simply ends after its
+   metadata line rather than reserving a row it will never fill. */
+.scout-entry-foot:empty {
+	display: none;
+}
+
+/* Somebody else's score, on something you have not scored yourself. Faint and
+   single-glyph on purpose: it fills the row a backlog item would leave empty
+   without ever being mistaken for your own rating, which is accent-coloured
+   and five icons wide. */
+.scout-source-rating {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	font-size: 11px;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+.scout-source-rating .scout-icon svg {
+	fill: currentColor;
+	stroke: none;
+	opacity: 0.8;
+}
+
+/* Something that has not come out yet. Accent-coloured because it is the one
+   line on a card that changes by itself. */
+.scout-entry-countdown {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--text-accent);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.scout-entry-fav {
+	position: absolute;
+	z-index: 2;
+	top: 6px;
+	inset-inline-end: 6px;
+	color: #fff;
+	filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+}
+.scout-entry-fav svg {
+	width: 15px;
+	height: 15px;
+	fill: currentColor;
+}
+
+/* A pill in the corner of the poster. Its own dark plate, because a cover is
+   any colour it likes, and the tone shows in the glyph rather than in the
+   plate so the shape stays the same whatever the status. */
+.scout-entry-status {
+	position: absolute;
+	z-index: 1;
+	bottom: 6px;
+	inset-inline-start: 6px;
+	max-width: calc(100% - 12px);
+	padding: 2px 8px 2px 6px;
+	border-radius: var(--scout-pill, 999px);
+	background: rgba(0, 0, 0, 0.72);
+	color: #fff;
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1.6;
+}
+.scout-entry-status .scout-icon,
+.scout-entry-status .scout-ring {
+	color: var(--scout-tone, #fff);
+}
+.scout-entry-status.scout-t-planned .scout-icon {
+	color: rgba(255, 255, 255, 0.8);
+}
+/* Only drop the chip below when the badge above actually rendered — with
+   covers turned off there is no artwork to put it on. */
+.scout-entries-grid
+	.scout-entry:has(.scout-entry-art)
+	.scout-entry-foot
+	.scout-chip-status,
+.scout-entries-list .scout-entry-status {
+	display: none;
+}
+/* Lifted clear of the progress bar when the card has both. */
+.scout-entry-status:has(+ .scout-entry-progress) {
+	bottom: 10px;
+}
+
+.scout-entry-progress {
+	position: absolute;
+	z-index: 1;
+	inset-inline: 0;
+	bottom: 0;
+	height: 3px;
+	background: rgba(255, 255, 255, 0.16);
+}
+.scout-entry-progress > span {
+	display: block;
+	height: 100%;
+	background: var(--scout-tone, var(--interactive-accent));
+}
+
+.scout-entries-list .scout-entry {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 7px 9px;
+	background: var(--background-secondary);
+	transition: background 90ms var(--scout-ease);
+}
+.scout-entries-list .scout-entry:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-entries-list .scout-entry-art {
+	position: relative;
+	width: 38px;
+	height: 57px;
+	flex-shrink: 0;
+	border-radius: 4px;
+	overflow: hidden;
+}
+.scout-entries-list .scout-cover {
+	border-radius: 4px;
+}
+.scout-entries-list .scout-entry-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+.scout-entries-list .scout-entry h4 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 500;
+}
+.scout-entries-list .scout-entry-meta {
+	margin: 0;
+}
+.scout-entries-list .scout-entry-foot {
+	margin-inline-start: auto;
+}
+
+.scout-table-wrap {
+	overflow-x: auto;
+}
+.scout-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+.scout-table th {
+	text-align: start;
+	padding: 6px 10px;
+	font-size: 12px;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+	white-space: nowrap;
+}
+.scout-table td {
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.scout-table tbody tr {
+	cursor: pointer;
+}
+.scout-table tbody tr:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-table-fav {
+	color: var(--text-accent);
+	margin-inline-end: 5px;
+}
+.scout-table-fav svg {
+	fill: currentColor;
+}
+
+.scout-empty {
+	max-width: 420px;
+	margin: 12vh auto 0;
+	text-align: center;
+	color: var(--text-muted);
+}
+.scout-empty > .scout-icon svg {
+	width: 40px;
+	height: 40px;
+	color: var(--text-faint);
+}
+.scout-empty h3 {
+	margin: 10px 0 6px;
+	color: var(--text-normal);
+}
+.scout-empty p {
+	font-size: 13px;
+	line-height: 1.55;
+}
+.scout-empty-hint {
+	color: var(--text-faint);
+}
+.scout-empty button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 10px;
+}
+
+/* ========================================================= settings tab */
+
+.scout-settings-tabs {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	margin-bottom: 18px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.scout-settings-tabs button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 13px;
+	border: none;
+	border-radius: 6px 6px 0 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 13px;
+	cursor: pointer;
+	margin-bottom: -1px;
+	border-bottom: 2px solid transparent;
+}
+.scout-settings-tabs button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-settings-tabs button.is-active {
+	color: var(--text-accent);
+	border-bottom-color: var(--interactive-accent);
+	font-weight: 600;
+}
+
+.scout-tab-intro {
+	margin: -4px 0 14px;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+/* Indented and boxed rather than hung off a coloured left stripe. */
+.scout-provider-settings {
+	padding: 2px 12px;
+	margin-bottom: 14px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--scout-radius, 6px);
+}
+.scout-setting-warning {
+	color: var(--text-warning);
+	font-size: 12px;
+}
+.scout-field-list {
+	font-size: 12px;
+	column-count: 2;
+}
+.scout-field-group {
+	list-style: none;
+	font-weight: 600;
+	margin-top: 6px;
+}
+
+.scout-custom-field {
+	padding: 10px 12px;
+	margin-bottom: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--scout-radius, 6px);
+}
+.scout-custom-field .setting-item {
+	border-top: none;
+	padding: 5px 0;
+}
+.scout-custom-field-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+.scout-kind-checks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	padding: 4px 0 2px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.scout-kind-checks label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+/* ============================================================== responsive */
+
+@media (max-width: 620px) {
+	/* Too narrow for two columns, so the hero stacks. */
+	.scout-detail-hero {
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+	}
+	.scout-detail-cover {
+		flex: 0 0 auto;
+	}
+	.scout-detail-meta,
+	.scout-detail-actions {
+		justify-content: center;
+	}
+	/* And the labels go back above their controls, which at this width is the
+	   only place left for them. */
+	.scout-manage-row {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 5px;
+	}
+	.scout-field-list {
+		column-count: 1;
+	}
+}
+
+@media (max-width: 500px) {
+	.scout-results-grid {
+		grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+	}
+	.scout-library-toolbar {
+		flex-wrap: wrap;
+	}
+}

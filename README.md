@@ -1,94 +1,129 @@
-# Obsidian Sample Plugin
+# Scout
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Track what you watch and read, in plain Obsidian notes.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Search a title (or paste a link), pick a result, and Scout renders it through your own template into the folder you choose. Everything it then creates lands in the **library** — one place to browse what you own, rate it, set its status, and write down what you thought.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Sources
 
-## First time developing plugins?
+| Source | Kinds | Credentials |
+| --- | --- | --- |
+| TMDB | Movies, TV | Free API read access token |
+| Open Library | Books | None |
+| AniList | Anime, manga | None |
+| Web link | Any URL | None |
 
-Quick starting guide for new plugin devs:
+## Setup
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+1. Enable the plugin in **Settings → Community plugins**.
+2. Open **Settings → Scout**.
+3. Under **Notes**, set an output folder for each kind you want to use.
+4. Under **Sources**, paste your TMDB token if you want movies and TV.
 
-## Releasing new releases
+Templates are optional — each kind has a built-in one.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+## The library
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Open it from the ribbon or with **Open library**. It lists every note whose media-type property names a kind — `type: movie`, `type: book`, and so on — so notes you wrote years ago show up alongside the ones Scout creates.
 
-## Adding your plugin to the community plugin list
+Browse as a grid, a list, or a table. Filter by type, status, genre, rating, or favourites; group by any of them; sort however you like. Right-click an item for its status menu without leaving the page.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+Select something to open its details: the metadata on top, and below it the part you own.
 
-## How to use
+- **Rating** — stars, hearts, or a number, out of 5, 10, or 100, in whole or half steps, and a different scale per type if your films are out of ten and your books are out of five
+- **Status** — one click, with the start and finish dates stamped for you, each shelf carrying its own colour and icon (and a progress ring, on anything you are part-way through)
+- **Progress** — episodes, pages, or chapters, with a bar when the note records a total
+- **Thoughts** — a text box wired to a heading in the note, so it stays readable and editable by hand
+- **Your own fields** — anything else you want to track, defined in settings
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+Every control writes ordinary frontmatter. There is no separate database, so Dataview, Bases, sync, and hand edits all keep working, and uninstalling Scout leaves your notes exactly as they are.
 
-## Manually installing the plugin
+### Making it fit your vault
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+Scout reads what you already have rather than asking you to convert anything. Under **Settings → Scout → Properties** you can point every field at the property name your notes use, and say which values (`film`, `series`, `graphic novel`) mean which kind. It already accepts the obvious alternatives — `poster` for a cover, `overview` for a description, `my_rating` for a rating — so most vaults need no changes at all.
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint ./src/`
+Statuses are yours too: set the shelves each kind can be on, in the order they should appear. Since they are your words, Scout cannot read meaning into them — instead you sort them into four groups (started, finished, set aside, given up on), and that is what decides each one's colour and icon and when a date gets stamped. Anything you leave out counts as not started yet.
 
-## Funding URL
+Ratings work the same way. Scout never rewrites a number in your notes — changing the scale only changes how the numbers already there are read — so instead of converting your vault you give each type the scale it already uses. Sorting, filtering, and the average then compare proportionally: a book at 4 out of 5 outranks a film at 7 out of 10. However large the scale, the row is always five icons, so a film rated 8 out of 10 fills four of them and nothing overflows a card.
 
-You can include funding URLs where people who use your plugin can financially support it.
+## Commands
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+- **Open library** — browse and manage everything you have
+- **Search all sources** — one modal across every enabled source
+- **Search movies / TV shows / books / anime / …** — per-kind, hidden when no source offers that kind
+- **Manage this note** — the detail view for the note you are looking at
+- **Create note from link in clipboard** — resolves a TMDB, Open Library, AniList, or arbitrary URL
+- **Reload plugin** — development helper
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+## Templates
+
+Placeholders use `{{name}}`. Frontmatter is rendered as **valid YAML** — values are quoted and escaped automatically, so a title containing a quote or colon will not corrupt the file, and lists become real YAML sequences that Dataview can query.
+
+```markdown
+---
+title: {{title}}
+genres: {{tags}}
+rating: {{rating}}
+release_date: {{release_date}}
+---
+
+# {{title}}
+
+{{description}}
+
+{{#if runtime}}**Runtime:** {{runtime}} minutes{{/if}}
 ```
 
-If you have multiple URLs, you can also do:
+Common fields: `title`, `subtitle`, `year`, `rating` (always 0–10), `cover`, `description`, `tags`, `people`, `url`, `release_date`, `kind`, `provider`, `id`, `now`. Each source adds its own — the full list is in **Settings → Scout → Templates**.
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+Filters: `{{tags|list}}`, `{{release_date|date:YYYY}}`, `{{description|truncate:200}}`, `{{people|link}}`, `{{rating|scale:10:5}}`, `{{pages|default:Unknown}}`, `{{cast|take:5}}`.
+
+Blocks: `{{#if x}}…{{else}}…{{/if}}`, `{{#each people}}- {{.}}{{/each}}`.
+
+A template that writes `type`, `status`, `rating`, `source`, and `scout_id` puts the note straight onto the right shelf and lets Scout recognize it in a later search. The built-in templates do all five.
+
+## Adding a source
+
+Providers are self-contained. Implement `MediaProvider` plus whichever capabilities apply — `Searchable`, `Detailable`, `Resolvable`, `Authenticated` — and add one line to the `PROVIDERS` table in `src/main.ts`. No changes to the modal, settings tab, or commands are needed.
+
+Settings pages work the same way: a page is one file in `src/core/settings/sections/` plus one entry in the `SECTIONS` list.
+
+```
+src/
+  core/
+    library/    reading, filtering, and editing the notes you already have
+    settings/   the store, and one file per tab of the settings dialog
+    ...         provider contracts, registry, HTTP, templating, note writing
+  providers/    one directory per source
+  ui/           the search modal, the detail dialog, the library view
 ```
 
-## API Documentation
+## Development
 
-See https://github.com/obsidianmd/obsidian-api
+```bash
+pnpm install
+```
+
+```bash
+pnpm run dev
+```
+
+```bash
+pnpm test
+```
+
+```bash
+pnpm run build
+```
+
+`dev` and `build` both write `main.js` to the plugin root, so the plugin in this vault picks up changes directly. `build` also mirrors the release artifacts into `dist/`.
+
+Obsidian does not reload a plugin when its `main.js` changes on disk. Install [hot-reload](https://github.com/pjeby/hot-reload) and enable it, then `pnpm run dev` is enough: esbuild rewrites `main.js`, hot-reload notices and re-enables the plugin within a second. It only watches plugin folders containing a `.git` directory or a `.hotreload` file — this repo has both.
+
+## Privacy
+
+Scout only contacts a source when you search or resolve a link — the library is built entirely from notes already in your vault, and never sends anything anywhere. Your TMDB token is stored in this vault's `data.json` in plain text, like all Obsidian plugin settings — treat that file accordingly. No telemetry.
+
+## License
+
+MIT
