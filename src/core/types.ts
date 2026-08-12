@@ -37,6 +37,23 @@ export const MEDIA_KIND_LABELS: Record<MediaKind, string> = {
 	link: "Web link",
 };
 
+/**
+ * The same words in the plural, for anything naming a shelf of them.
+ *
+ * Written out rather than an "s" on the end, because two of them do not take
+ * one and "Animes" on a tab is the sort of thing that makes an app look like
+ * nobody read it.
+ */
+export const MEDIA_KIND_PLURALS: Record<MediaKind, string> = {
+	movie: "Movies",
+	tv: "TV shows",
+	book: "Books",
+	game: "Games",
+	anime: "Anime",
+	manga: "Manga",
+	link: "Web links",
+};
+
 /** Values a template placeholder is allowed to resolve to. */
 export type TemplateValue =
 	| string
@@ -56,6 +73,19 @@ export interface MediaRef {
 	kind: MediaKind;
 	/** Provider-native id. String because not every provider uses integers. */
 	id: string;
+}
+
+/**
+ * One string naming one thing at one source.
+ *
+ * Lives here, beside the type it is made from, rather than in whichever module
+ * happened to need it first — which was `feedback.ts`, and meant that anything
+ * wanting to key something by ref had to import the feedback log to do it.
+ * Deliberately excludes the kind: the same id at the same source is the same
+ * thing whatever shelf a note filed it under.
+ */
+export function sourceKey(ref: MediaRef): string {
+	return `${ref.providerId}:${ref.id}`;
 }
 
 /**
@@ -93,6 +123,52 @@ export interface MediaItem {
 	releaseDate?: string;
 	/** Provider-specific fields, each declared in the provider's `fields`. */
 	extra: Record<string, TemplateValue>;
+}
+
+/**
+ * One season of a series.
+ *
+ * Season zero is the specials everywhere it appears, which is why the number
+ * is carried rather than the position in the list.
+ */
+export interface SeasonInfo {
+	number: number;
+	name: string;
+	episodeCount?: number;
+	year?: number;
+	overview?: string;
+	posterUrl?: string;
+}
+
+/** One episode. `rating` is normalized to ten, as everywhere else. */
+export interface EpisodeInfo {
+	season: number;
+	number: number;
+	title: string;
+	overview?: string;
+	/** ISO `YYYY-MM-DD` where known. */
+	airDate?: string;
+	rating?: number;
+	/** Minutes. */
+	runtime?: number;
+	stillUrl?: string;
+}
+
+/**
+ * A set of items the source says belong together — a film series, a trilogy,
+ * the volumes of one work. Named after what the source calls it.
+ *
+ * Not a collection. A collection is a shelf the user makes and the notes
+ * remember; this is a fact about the work that arrives with it and that nobody
+ * here can change. TMDB happens to call it a collection, which is where the
+ * confusion came from: two things under one word, one of them yours and one of
+ * them not.
+ */
+export interface Series {
+	id: string;
+	name: string;
+	overview?: string;
+	items: MediaItem[];
 }
 
 /** Declares a template placeholder so settings can document and validate it. */

@@ -1,8 +1,14 @@
 import { TFile, normalizePath, type App, type Plugin } from "obsidian";
 import type { ScoutSettings } from "../settings/store";
+import { normalizeTitle } from "../title";
 import type { MediaItem, MediaKind, MediaRef } from "../types";
 import { splitList } from "./config";
-import { buildEntry, type LibraryEntry, type NoteSource } from "./entry";
+import {
+	buildEntry,
+	sameEntry,
+	type LibraryEntry,
+	type NoteSource,
+} from "./entry";
 
 /**
  * The library index.
@@ -12,16 +18,6 @@ import { buildEntry, type LibraryEntry, type NoteSource } from "./entry";
  * Updates are incremental — a note that changes is re-parsed on its own — and
  * a full rebuild only happens when settings change the meaning of the data.
  */
-
-/** Comparison form for matching a search result to a note by name. */
-function normalizeTitle(title: string): string {
-	return title
-		.toLowerCase()
-		.normalize("NFKD")
-		.replace(/\p{Mark}+/gu, "")
-		.replace(/[^\p{Letter}\p{Number}]+/gu, " ")
-		.trim();
-}
 
 function refKey(ref: MediaRef): string {
 	return `${ref.providerId}:${ref.kind}:${ref.id}`;
@@ -37,6 +33,17 @@ export class LibraryIndex {
 	private byRef = new Map<string, LibraryEntry>();
 	private byName = new Map<string, LibraryEntry>();
 	private built = false;
+	/**
+	 * The last array `all()` handed out, kept until the set actually changes.
+	 *
+	 * Every view memoizes its filtering, sorting, and grouping on the entry
+	 * array, so handing back a fresh copy on each call — which is what this did —
+	 * meant a keystroke anywhere re-ran all of it over the whole library. The
+	 * snapshot is the identity those memos hang on.
+	 */
+	private snapshot: readonly LibraryEntry[] | null = null;
+	/** Whether `byRef`/`byName` still match the entry set. Rebuilt on demand. */
+	private projected = false;
 	private readonly listeners = new Set<() => void>();
 	private notifyTimer: number | null = null;
 	private rebuildTimer: number | null = null;
@@ -57,14 +64,14 @@ export class LibraryIndex {
 		);
 		plugin.registerEvent(
 			this.app.vault.on("delete", (file) => {
-				if (this.entries.delete(file.path)) this.reproject();
+				if (this.entries.delete(file.path)) this.changed();
 			}),
 		);
 		plugin.registerEvent(
 			this.app.vault.on("rename", (file, oldPath) => {
 				this.entries.delete(oldPath);
 				if (file instanceof TFile) this.reindex(file);
-				else this.reproject();
+				else this.changed();
 			}),
 		);
 		// A changed field map or alias list changes what every note parses to.
@@ -82,9 +89,16 @@ export class LibraryIndex {
 		return () => this.listeners.delete(listener);
 	}
 
-	all(): LibraryEntry[] {
+	/**
+	 * Every entry, as a shared array.
+	 *
+	 * Stable between changes and not to be mutated by callers — everything that
+	 * sorts or filters it already copies first.
+	 */
+	all(): readonly LibraryEntry[] {
 		this.ensureBuilt();
-		return [...this.entries.values()];
+		if (!this.snapshot) this.snapshot = [...this.entries.values()];
+		return this.snapshot;
 	}
 
 	byPath(path: string): LibraryEntry | undefined {
@@ -103,7 +117,7 @@ export class LibraryIndex {
 	 * *different* item is definitively not this one.
 	 */
 	match(item: MediaItem): LibraryEntry | undefined {
-		this.ensureBuilt();
+		this.ensureProjected();
 		const exact = this.byRef.get(refKey(item.ref));
 		if (exact) return exact;
 
@@ -133,7 +147,7 @@ export class LibraryIndex {
 	}
 
 	find(ref: MediaRef): LibraryEntry | undefined {
-		this.ensureBuilt();
+		this.ensureProjected();
 		return this.byRef.get(refKey(ref));
 	}
 
@@ -142,7 +156,7 @@ export class LibraryIndex {
 		this.entries.clear();
 		this.built = false;
 		this.ensureBuilt();
-		this.reproject();
+		this.changed();
 	}
 
 	/* ------------------------------------------------------------- internals */
@@ -154,7 +168,7 @@ export class LibraryIndex {
 			const entry = this.parse(file);
 			if (entry) this.entries.set(file.path, entry);
 		}
-		this.project();
+		this.invalidate();
 	}
 
 	private reindex(file: TFile): void {
@@ -163,10 +177,16 @@ export class LibraryIndex {
 		if (!this.built) return;
 
 		const entry = this.parse(file);
-		const had = this.entries.has(file.path);
+		const before = this.entries.get(file.path);
+		// The metadata cache fires for reasons that have nothing to do with the
+		// note's own content — a link resolving elsewhere, a cache rebuild on
+		// startup, a sync touching a file it did not change. Handing the views a
+		// new object each time would re-filter, re-sort and re-render the whole
+		// library for a note that reads exactly as it did a moment ago.
+		if (entry && before && sameEntry(before, entry)) return;
 		if (entry) this.entries.set(file.path, entry);
 		else this.entries.delete(file.path);
-		if (entry || had) this.reproject();
+		if (entry || before) this.changed();
 	}
 
 	private parse(file: TFile): LibraryEntry | null {
@@ -209,7 +229,18 @@ export class LibraryIndex {
 		return roots.some((root) => lower.startsWith(`${root}/`));
 	}
 
-	/** Rebuilds the lookup maps from the entry set. */
+	/**
+	 * Rebuilds the lookup maps, and only when something asks to look something
+	 * up. They serve the search modal alone, so rebuilding them for each of the
+	 * hundred notes a sync touches was work nobody had asked for.
+	 */
+	private ensureProjected(): void {
+		this.ensureBuilt();
+		if (this.projected) return;
+		this.projected = true;
+		this.project();
+	}
+
 	private project(): void {
 		this.byRef = new Map();
 		this.byName = new Map();
@@ -230,8 +261,14 @@ export class LibraryIndex {
 		}
 	}
 
-	private reproject(): void {
-		this.project();
+	/** Throws away everything derived from the entry set. */
+	private invalidate(): void {
+		this.snapshot = null;
+		this.projected = false;
+	}
+
+	private changed(): void {
+		this.invalidate();
 		this.scheduleNotify();
 	}
 

@@ -1,6 +1,9 @@
 import type { App } from "obsidian";
+import type { CollectionKeeper } from "./library/collector";
 import type { LibraryIndex } from "./library/indexer";
 import type { LibraryMutator } from "./library/mutate";
+import type { LibraryEnricher } from "./library/enricher";
+import type { LibraryRefresher } from "./library/refresher";
 import type { NoteFactory } from "./noteFactory";
 import type { ProviderRegistry } from "./registry";
 import type { ScoutSettings } from "./settings/store";
@@ -19,4 +22,10 @@ export interface ScoutContext {
 	factory: NoteFactory;
 	library: LibraryIndex;
 	mutator: LibraryMutator;
+	/** Keeps the facts a source owns current, in the background and on demand. */
+	refresher: LibraryRefresher;
+	/** Reads up on the library in the background, so suggestions can sharpen. */
+	enricher: LibraryEnricher;
+	/** Keeps automatic collections filled as the library changes. */
+	collector: CollectionKeeper;
 }

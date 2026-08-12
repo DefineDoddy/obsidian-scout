@@ -16,6 +16,7 @@
 .scout-modal,
 .scout-detail-modal,
 .scout-library,
+.scout-home,
 .scout-settings {
 	--scout-radius: 6px;
 	--scout-pill: 999px;
@@ -193,9 +194,13 @@
 
 /* ================================================================= ratings */
 
+/* Wraps rather than overflows. Ten icons at their dialog size come to about
+   260px, which is wider than the control column of a phone-width dialog — and
+   a row that runs off the edge takes the score readout with it. */
 .scout-rating {
 	display: inline-flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 1px;
 }
 .scout-rating-slot {
@@ -242,10 +247,31 @@
 	cursor: pointer;
 }
 .scout-rating-value {
-	margin-inline-start: 6px;
+	margin-inline-start: 4px;
 	font-size: 12px;
 	color: var(--text-muted);
 	font-variant-numeric: tabular-nums;
+}
+/* The value under the pointer, over the icon that would set it. Its own plate
+   rather than the platform tooltip, which arrives about a second after the
+   pointer has moved on to a different score. */
+.scout-rating-tip {
+	position: absolute;
+	z-index: 3;
+	bottom: calc(100% + 6px);
+	inset-inline-start: 50%;
+	transform: translateX(-50%);
+	padding: 2px 6px;
+	border-radius: 4px;
+	background: var(--background-modifier-message, var(--background-secondary));
+	border: 1px solid var(--background-modifier-border);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+	color: var(--text-normal);
+	font-size: 11px;
+	line-height: 1.45;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
 }
 .scout-rating-numeric input {
 	width: 5em;
@@ -269,22 +295,34 @@
 .scout-rating-entry {
 	display: inline-flex;
 	align-items: baseline;
-	margin-inline-start: 7px;
+	margin-inline-start: 3px;
 	font-size: 12px;
 	color: var(--text-muted);
 }
+/* Narrow, and centred rather than right-aligned. At 3.4em with the digits
+   pushed to the far edge, an empty field put a finger's width of nothing
+   between the last star and the score it belongs to. */
 .scout-rating-entry input[type="number"] {
-	width: 3.4em;
+	width: 2.5em;
 	height: auto;
-	padding: 1px 4px;
+	text-align: center;
+	padding: 1px 2px;
 	border: 1px solid transparent;
 	border-radius: 4px;
 	background: transparent;
 	box-shadow: none;
 	font-size: 12px;
-	text-align: end;
 	color: var(--text-normal);
 	font-variant-numeric: tabular-nums;
+	/* No spinner: at this width the arrows would take a third of the field, and
+	   they are a slow way to reach 8.5 anyway. */
+	appearance: textfield;
+	-moz-appearance: textfield;
+}
+.scout-rating-entry input[type="number"]::-webkit-inner-spin-button,
+.scout-rating-entry input[type="number"]::-webkit-outer-spin-button {
+	appearance: none;
+	margin: 0;
 }
 .scout-rating-entry input[type="number"]:hover {
 	border-color: var(--background-modifier-border);
@@ -516,9 +554,24 @@
 
 .scout-detail-modal {
 	max-width: 680px;
+	/* The dialog's own skirt, cut to the same air the sides have. Obsidian
+	   leaves a deep one under the content for dialogs that end in a row of
+	   buttons; this one ends in a text area, and the gap under it read as the
+	   panel having lost something. */
+	padding-bottom: 16px;
 }
 .scout-detail-modal .modal-header {
 	margin-bottom: 0;
+}
+.scout-detail-modal .modal-content {
+	margin-bottom: 0;
+	padding-bottom: 0;
+}
+/* An inline element sits on a baseline, and the few pixels below it are for
+   descenders no text area has. Blocks do not. */
+.scout-thoughts textarea,
+.scout-episode-note {
+	display: block;
 }
 
 /* Two columns, and only the hero is in them.
@@ -529,6 +582,11 @@
 	display: flex;
 	align-items: flex-start;
 	gap: 18px;
+}
+/* The poster and anything that belongs on it. */
+.scout-detail-art {
+	position: relative;
+	flex: 0 0 118px;
 }
 .scout-detail-cover {
 	flex: 0 0 118px;
@@ -577,18 +635,19 @@
 	opacity: 0.85;
 }
 /* Not yet out. Worth a colour, since it is the one fact that dates. */
+/* The type, with its glyph. First in the line, so no separator dot precedes
+   it — the icon is what starts the row. */
+.scout-detail-kind {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
 .scout-detail-soon {
 	color: var(--text-accent);
 }
-.scout-detail-owned {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	color: var(--text-accent);
-}
+/* Last on the facts line, and the quietest thing on it: what a thing *is*
+   ranks below what type it is and when it came out. */
 .scout-detail-genres {
-	margin: 3px 0 0;
-	font-size: 12px;
 	color: var(--text-faint);
 }
 .scout-detail-actions {
@@ -614,14 +673,27 @@
 	font-size: 13px;
 	line-height: 1;
 }
-/* The one exception, and deliberately so: a round button among square ones
-   reads as a different kind of action, which is what it is. */
-.scout-detail-actions .scout-fav {
+/* Square like the rest of the row. It was round to mark it out as a different
+   kind of action, but sitting in a row of rounded rectangles that read as one
+   odd one out rather than as a distinction — the heart already says what it
+   does. Nor does it get a nudge of its own away from Delete: the row's gap is
+   even everywhere else, so two extra pixels here read as a mistake rather than
+   as a grouping. */
+.scout-detail-actions .scout-fav,
+.scout-detail-actions .scout-more-actions {
 	width: var(--scout-control-h, 30px);
 	height: var(--scout-control-h, 30px);
 	padding: 0;
-	margin-inline-start: 2px;
-	border-radius: 50%;
+	border-radius: var(--scout-radius, 6px);
+}
+/* The overflow wears the same plate as the heart beside it. One filled button
+   leading, two plain ones after it, is a hierarchy; a filled one, a plated one
+   and a floating glyph is three unrelated buttons. */
+.scout-detail-actions .scout-more-actions {
+	color: var(--text-muted);
+}
+.scout-detail-actions .scout-more-actions:hover {
+	color: var(--text-normal);
 }
 .scout-detail-actions .scout-button {
 	background: var(--interactive-normal);
@@ -638,15 +710,33 @@
 	font-size: 14px;
 	line-height: 1.55;
 }
+/* Cut to a number of lines, not a number of characters. A character count is a
+   guess about width: the same 420 characters is three lines in a wide dialog
+   and eight in a narrow one, and it always ended mid-word. The button above
+   appears only when this actually clipped something, which is measured. */
 .scout-detail-description p {
 	margin: 0;
+	display: -webkit-box;
+	-webkit-line-clamp: 5;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
-/* Its own line under the text. Inline, it sat wherever the last sentence
-   happened to stop, and the whole paragraph reflowed around it on each click. */
-.scout-detail-description .scout-link-button {
+.scout-detail-description.is-open p {
+	display: block;
+	overflow: visible;
+}
+/* Its own line under the text, and no plate under the words. Inline it sat
+   wherever the last sentence happened to stop and the paragraph reflowed around
+   it on each click; with the theme's button background it was a control the
+   same weight as Delete, for showing two more lines of synopsis. */
+.scout-detail-description .scout-link-button,
+.scout-detail-description .scout-link-button:hover {
 	display: inline-block;
-	margin-top: 4px;
+	margin-top: 6px;
 	padding: 0;
+	background: none;
+	border: none;
+	box-shadow: none;
 }
 .scout-detail-people {
 	margin: 14px 0 0;
@@ -669,26 +759,475 @@
 	text-align: center;
 }
 
+/* ======================================================= seasons & series */
+
+/* The way through to the guide. A plate rather than a heading, because unlike
+   every other heading in the dialog this one goes somewhere — and the chevron
+   at the end is the only thing that says so before you click it. */
+.scout-section-link {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	width: 100%;
+	/* Obsidian gives every button one height. Anything of ours that is a button
+	   but not button-shaped has to say so, or its padding is ignored and its
+	   contents are cropped to thirty pixels. */
+	height: auto;
+	margin-top: 18px;
+	padding: 10px 12px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-normal);
+	text-align: start;
+	cursor: pointer;
+	transition: background 90ms var(--scout-ease);
+}
+.scout-section-link:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-section-link > .scout-icon:first-child {
+	color: var(--text-muted);
+}
+.scout-section-link > .scout-icon:last-child {
+	color: var(--text-faint);
+}
+.scout-section-title {
+	font-size: 13px;
+	font-weight: 600;
+}
+h3.scout-section-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 20px 0 10px;
+	color: var(--text-muted);
+}
+/* Where you are, when the guide is shut — the one thing worth knowing without
+   opening it. */
+.scout-section-note {
+	margin-inline-start: auto;
+	font-size: 11px;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* ---------------------------------------------------- the guide, as a page */
+
+/* Its own view of the dialog rather than a fold inside one. Everything below
+   is free to be full width and full height, which is the whole point: a season
+   of twenty-four does not belong in a 340px window inside a synopsis. */
+.scout-episodes-page {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-height: 60vh;
+}
+/* Back on a line of its own, at the start of it, and nothing else on that line.
+   The dialog's close button lives in the top right corner of the same strip:
+   anything put over there — the season and episode counts, as it was — ends up
+   underneath it. */
+.scout-episodes-bar {
+	display: flex;
+	align-items: center;
+}
+.scout-episodes-head {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.scout-episodes-head h2 {
+	margin: 0;
+	min-width: 0;
+	font-size: 19px;
+	font-weight: 600;
+	line-height: 1.25;
+}
+.scout-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	flex: 0 0 auto;
+	height: var(--scout-control-h, 28px);
+	padding: 0 10px 0 4px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.scout-back:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+/* How long the run is and where you are in it, on one line under the title.
+   The list says the second part in ticks; this says it once in words, at the
+   top, which is the thing you opened the page to find out. */
+.scout-episodes-where {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 8px;
+	margin: 0;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+/* The separator belongs to the line rather than to either fact, so a show with
+   no marker yet does not trail one. */
+.scout-episodes-where > span + span::before {
+	content: "·";
+	margin-inline-end: 8px;
+	color: var(--text-faint);
+}
+.scout-episodes-where strong {
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+/* One segmented row, the same shape as the statuses in the panel below. */
+.scout-season-pills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-bottom: 8px;
+}
+.scout-season-pills button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: var(--scout-segment-h, 26px);
+	padding: 0 10px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+	line-height: 1;
+	white-space: nowrap;
+}
+.scout-season-pills button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-season-pills button.is-on {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.scout-season-pills button.is-on .scout-count {
+	background: rgba(255, 255, 255, 0.2);
+	color: inherit;
+}
+.scout-season-select {
+	margin-bottom: 8px;
+	height: var(--scout-control-h, 28px);
+	border-radius: var(--scout-radius, 6px);
+	font-size: 12px;
+}
+
+/* Uncapped: the page scrolls, not a box inside it. Nothing below the list
+   competes for the room any more, so a long season simply makes a long page. */
+.scout-episode-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+/* Every episode open, always: still, number, facts, synopsis. This is the shape
+   a streaming guide has, and it has it because the question being asked while
+   scrolling one is "which one was this", which a closed drawer cannot answer
+   until after you have opened it — twenty times, to find one episode. */
+.scout-episode {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 12px 6px;
+	border-radius: var(--scout-radius, 6px);
+	border-top: 1px solid var(--background-modifier-border);
+}
+.scout-episode:first-child {
+	border-top: none;
+}
+.scout-episode:hover {
+	background: var(--background-modifier-hover);
+}
+/* The one you have not seen yet is the only row on the list with anything to
+   say, so it is the only one lit. */
+.scout-episode.is-next {
+	background: var(--background-secondary);
+}
+.scout-episode-no {
+	flex: 0 0 auto;
+	min-width: 16px;
+	padding-top: 1px;
+	color: var(--text-faint);
+	font-size: 15px;
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+/* The still, with the tick over it. Together rather than at opposite ends of
+   the row: marking an episode watched is the one thing this list does, and the
+   thumbnail is where the pointer already is.
+   It gives up width before the words do, and gives up its line last of all —
+   sized against the row rather than the window, because a dialog is narrow
+   inside a wide window all the time and no media query can see that. */
+.scout-episode-art {
+	position: relative;
+	flex: 0 1 150px;
+	min-width: 68px;
+}
+.scout-episode-still {
+	display: block;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+}
+.scout-episode-still.is-blank {
+	border: 1px solid var(--background-modifier-border);
+}
+.scout-episode.is-watched .scout-episode-still {
+	opacity: 0.55;
+}
+/* Over the corner of the still, on its own dark plate — a still is any colour
+   at all, and a glyph laid straight onto one disappears into about half of
+   them. */
+/* Two marks, side by side in the corner: the tick, which is about this one
+   episode, and the fill, which is about everything behind it. They are two
+   gestures and so they are two buttons — one control doing both meant a show
+   watched out of order could not be recorded at all. */
+.scout-episode-marks {
+	position: absolute;
+	z-index: 1;
+	inset-block-end: 5px;
+	inset-inline-start: 5px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.scout-episode-tick,
+.scout-episode-fill {
+	position: static;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.62);
+	box-shadow: none;
+	color: #fff;
+	opacity: 0.85;
+}
+.scout-episode-tick:hover,
+.scout-episode-fill:hover {
+	background: rgba(0, 0, 0, 0.8);
+	opacity: 1;
+}
+/* The tick is drawn as an empty box until it is ticked, because a filled tick
+   on an episode nobody has watched is the control lying about the state it is
+   asking you to set. */
+.scout-episode-tick {
+	box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+	color: rgba(255, 255, 255, 0.65);
+}
+.scout-episode-tick:hover {
+	box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.8);
+	color: #fff;
+}
+.scout-episode-tick.is-on,
+.scout-episode-tick.is-on:hover {
+	background: var(--interactive-accent);
+	box-shadow: none;
+	color: var(--text-on-accent);
+	opacity: 1;
+}
+.scout-episode-text {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	/* A real basis, so a narrowing dialog takes width off the still and the
+	   words together rather than crushing the words while the still keeps every
+	   pixel of its 150. Both give until the still hits its floor. */
+	flex: 1 1 170px;
+	min-width: 0;
+}
+/* Title at the start, facts at the end of the same line — they wrap onto two
+   only when the dialog genuinely has no room for both. */
+.scout-episode-line {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 6px 12px;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+.scout-episode-title {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 0;
+	font-size: 14px;
+	font-weight: 500;
+}
+/* Everything before the marker is behind you, so it recedes. */
+.scout-episode.is-watched .scout-episode-title {
+	color: var(--text-muted);
+}
+.scout-episode-flag {
+	flex: 0 0 auto;
+	padding: 1px 6px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1.5;
+}
+/* Shrinkable, and allowed to wrap as the last resort. Pinned at its full width
+   it was the one thing on the row that could not give, so a narrow dialog put
+   the air date out past the edge of the page rather than onto a second line. */
+.scout-episode-meta {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 2px 6px;
+	flex: 0 1 auto;
+	font-size: 11px;
+	color: var(--text-faint);
+}
+/* Three lines. A TMDB synopsis is two or three; the handful that run to six
+   would each be taller than the still beside them, and the list would stop
+   being a list. */
+.scout-episode-overview {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--text-muted);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+.scout-episode-blank {
+	color: var(--text-faint);
+	font-style: italic;
+}
+/* Your score and your note, under the source's words rather than at the far end
+   of the row: they are the two things on this row that are yours. */
+.scout-episode-yours {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	margin-top: 2px;
+	min-height: 22px;
+}
+/* Only while the row is under the pointer, or once you have actually rated the
+   episode. A column of empty star rows down a season of twenty is a form. */
+.scout-episode-yours .scout-link-button {
+	opacity: 0;
+	transition: opacity 90ms var(--scout-ease);
+}
+.scout-episode:hover .scout-episode-yours .scout-link-button,
+.scout-episode-yours .scout-link-button:focus-visible {
+	opacity: 1;
+}
+.scout-episode-note {
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 44px;
+	margin-top: 4px;
+	resize: vertical;
+	border-radius: var(--scout-radius, 6px);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+/* The rest of the series, wrapped rather than scrolled sideways.
+   A horizontal strip sounded right and was not: the dialog is about 600px, a
+   series is eight films, and the four that did not fit sat behind a scroll
+   region with no scrollbar and no edge — cut off at the dialog's border and
+   indistinguishable from a bug. Wrapped, the whole series is on the page and
+   the row of covers is still a row of covers.
+
+   Columns only: everything else comes from `.scout-entries-grid`, because
+   these are library cards and a series is a shelf. */
+.scout-series-strip {
+	grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+	gap: 12px 10px;
+}
+/* The one you are already looking at.
+   Three wrong answers came before this one, and they were all the same wrong
+   answer: something added. A pill over the poster reading "You are here" covered
+   the artwork to announce itself in a voice nobody wants. A 1px accent outline
+   around one card in a row of four is a focus ring — it said "this is selected,
+   press it" about the only card that does nothing. An accent bar and an accent
+   plate were quieter and still furniture.
+   So nothing is added. The row recedes and this one does not: the others sit at
+   72% and come back to full under the pointer, which also says without a word
+   which cards do something when you press them and which one you are standing
+   on. The title in accent is the second cue, and the poster is left alone. */
+.scout-series-strip .scout-entry {
+	opacity: 0.72;
+	transition:
+		opacity 70ms var(--scout-ease),
+		background 70ms var(--scout-ease);
+}
+.scout-series-strip .scout-entry:hover,
+.scout-series-strip .scout-entry.is-here {
+	opacity: 1;
+}
+.scout-entries .scout-entry.is-here {
+	cursor: default;
+}
+.scout-entries .scout-entry.is-here h4 {
+	color: var(--text-accent);
+}
+/* The plain hover rule is later in the file: the card you are on must not light
+   up under the pointer like the ones that go somewhere. */
+.scout-entries-grid .scout-entry.is-here:hover {
+	background: var(--background-secondary);
+}
+.scout-series-owned {
+	position: absolute;
+	z-index: 1;
+	top: 4px;
+	inset-inline-end: 4px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 17px;
+	height: 17px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
 /* ============================================================ manage panel */
 
 /* No plate. A panel inside a dialog is a card inside a card, and the grey box
    was doing nothing a rule and some space could not do better. The labels
    recede into a quiet column so the controls are what you actually see. */
+/* One grid for the whole panel rather than a grid per row. The label column is
+   then as wide as the longest label and no wider — a fixed 92px column left
+   every short label marooned half an inch from the control it names, and the
+   two could not be read as one thing. Rows are `contents`, which is what lets
+   separate rows share a column and stay aligned with each other. */
 .scout-manage {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	column-gap: 13px;
+	row-gap: 12px;
 	margin-top: 22px;
 	padding-top: 18px;
 	border-top: 1px solid var(--background-modifier-border);
 }
-/* A grid, not a wrapping flex row. The status control is the widest thing in
-   the panel, and as a flex item it pushed itself onto a line of its own —
-   which is why its label sat above it while every other label sat beside. A
-   column keeps the label where it belongs whatever the control does. */
 .scout-manage-row {
-	display: grid;
-	grid-template-columns: 92px minmax(0, 1fr);
-	align-items: center;
-	gap: 14px;
-	padding: 6px 0;
+	display: contents;
 }
 /* Sentence case, same reasoning as the group headings: the column position and
    the grey already say "this is a label". */
@@ -712,17 +1251,24 @@
 .scout-manage-control input[type="checkbox"] {
 	height: auto;
 }
+/* Spread across the column rather than bunched at its start. A row holding two
+   or three separate controls — the dates, the stepper and its bar — reads as
+   one row of the panel when it spans the same width the status group does, and
+   as an abandoned half-row when it stops in the middle. Rows with a single
+   control are unaffected, which is why the rating readout stays where it is. */
 .scout-manage-control {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	justify-content: space-between;
+	gap: 12px;
 	flex: 1;
 	min-width: 0;
 	flex-wrap: wrap;
 }
 
-/* A round button, not a rounded rectangle: equal width and height, and the
-   theme's own radius overridden so it cannot come out as a lozenge. */
+/* Square, and the same square as everything else: equal width and height so it
+   cannot come out as a lozenge, and the shared radius so it sits in a row of
+   buttons without announcing itself. */
 .scout-fav {
 	display: inline-flex;
 	align-items: center;
@@ -731,7 +1277,7 @@
 	height: var(--scout-control-h, 28px);
 	padding: 0;
 	flex: 0 0 auto;
-	border-radius: 50%;
+	border-radius: var(--scout-radius, 6px);
 	color: var(--text-muted);
 }
 /* Not the accent: the stars beside it are already accent-coloured, and two
@@ -749,19 +1295,22 @@
 /* A single segmented control rather than five loose pills of different widths,
    which is what made the row look ragged.
 
-   Sized to its own content, never to the column: `justify-self` is what stops
-   a three-status note showing two statuses' worth of empty plate beside them.
-   Because that sizing is fit-content, the same rule also lets the group wrap
-   when the dialog is too narrow for one line — and a wrapped row is neat
-   rather than ragged, since the segments grow to fill whatever line they land
-   on. Truncating them instead is what hid half of every word.
+   Sized to the column, with the segments sharing it out between them. It used
+   to size to its own content, which left the panel ending in three different
+   places down four rows — the statuses stopping an inch short of the dates
+   below them, and the progress bar floating in the gap. Every row now runs the
+   full width of the column and the panel reads as one block.
+
+   It still wraps when the dialog is too narrow for one line, and a wrapped row
+   is neat rather than ragged, since the segments grow to fill whatever line
+   they land on. Truncating them instead is what hid half of every word.
 
    None of this can put the label back above the control: the row is a grid, so
    the label holds its own column however tall this gets. */
 .scout-status-group {
 	display: flex;
 	flex-wrap: wrap;
-	justify-self: start;
+	justify-self: stretch;
 	max-width: 100%;
 	gap: 2px;
 	padding: 2px;
@@ -892,16 +1441,25 @@
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
+/* What the stepper says, without the stepper: a show counted by ticking
+   episodes has one place that sets the number, and it is not here. */
+.scout-progress-read {
+	color: var(--text-muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
 .scout-progress-percent {
 	color: var(--text-muted);
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
-/* Capped: stretched across the dialog it was the loudest thing in the panel,
-   and a bar that long says nothing a short one does not. */
+/* Takes whatever the row has left. Capped at 160px it sat marooned in the
+   middle of the row with a gap either side, which read as a bar that had failed
+   to load rather than as a deliberately short one. */
 .scout-progress-bar {
-	flex: 0 1 160px;
+	flex: 1 1 auto;
 	min-width: 60px;
 	height: 5px;
 	border-radius: 3px;
@@ -917,19 +1475,77 @@
 .scout-date-row {
 	gap: 14px;
 }
+/* Half the row each, and the field takes whatever the word beside it leaves.
+   Sized to themselves the two boxes ended wherever the browser's date widget
+   happened to want, which was never where the row above them ended. */
 .scout-date-row label {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	flex: 1 1 0;
+	min-width: 0;
 	font-size: 12px;
 	color: var(--text-muted);
 }
+.scout-date-row label > span {
+	flex: 0 0 auto;
+}
 .scout-date-row input {
+	flex: 1 1 auto;
+	min-width: 0;
 	font-size: 12px;
 }
 
+/* Going round again, among the other things you can do to the item. It sat on
+   the end of the dates row before, where it read as a third date field and
+   pushed the two real ones onto a line of their own at any sensible width. */
+/* On the poster, in the corner the cards keep their badges in. The line of
+   facts under the title is for the facts you look for; how many times round
+   you have been is one you notice. */
+.scout-replay-count {
+	position: absolute;
+	z-index: 2;
+	left: 6px;
+	bottom: 6px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 7px;
+	border-radius: var(--scout-pill, 999px);
+	background: rgba(0, 0, 0, 0.66);
+	color: #fff;
+	font-size: 11px;
+	line-height: 1.35;
+	white-space: nowrap;
+}
+/* Quieter than the two buttons beside it: an occasional action, not the one
+   the dialog is for. */
+.scout-replay-again {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: var(--scout-control-h, 28px);
+	padding: 0 11px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1;
+	white-space: nowrap;
+}
+.scout-replay-again:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Across both columns, and with room above it: a text area is a section of the
+   panel rather than one more field on a line. Its own heading keeps the space
+   the rows above gave up, which is what the user asked for — tighter fields,
+   not a tighter panel. */
 .scout-thoughts {
-	margin-top: 12px;
+	grid-column: 1 / -1;
+	margin-top: 8px;
 }
 .scout-thoughts-head {
 	display: flex;
@@ -943,6 +1559,8 @@
 }
 .scout-thoughts textarea {
 	width: 100%;
+	/* Or its padding lands outside the dialog and the panel scrolls sideways. */
+	box-sizing: border-box;
 	min-height: 104px;
 	resize: vertical;
 	border-radius: var(--scout-radius, 6px);
@@ -962,7 +1580,11 @@
 	padding: 0;
 	overflow: hidden;
 }
+/* A container, so the chrome answers to the width of the pane rather than the
+   width of the window. A library in a split beside a note is half the screen
+   wide and needs the narrow layout; a media query cannot tell the two apart. */
 .scout-library {
+	container: scout-library / inline-size;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -972,15 +1594,19 @@
 
 .scout-library-toolbar {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
 }
+/* Wide enough for a title and no wider. The box used to take the whole line,
+   which is space a search field cannot use — the dropdowns that narrow the same
+   list may as well stand beside it. */
 .scout-search-wrap {
 	position: relative;
 	display: flex;
 	align-items: center;
-	flex: 1;
-	min-width: 0;
+	flex: 0 1 260px;
+	min-width: 140px;
 }
 .scout-search-wrap > .scout-icon {
 	position: absolute;
@@ -1006,11 +1632,14 @@
 	box-shadow: none;
 	color: var(--text-faint);
 }
+/* Add and the layout toggle are not filters, so they sit apart from them at the
+   far end of the strip rather than in the queue of dropdowns. */
 .scout-add {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
 	flex: 0 0 auto;
+	margin-inline-start: auto;
 	border-radius: var(--scout-radius, 6px);
 }
 /* Themes disagree wildly on button radius; the toolbar reads as one strip
@@ -1055,53 +1684,148 @@
 	color: var(--text-normal);
 }
 
-.scout-library-filters {
+/* ------------------------------------------------------------- view tabs */
+
+/* Tabs, not pills: these are places you go, not filters you turn on, and the
+   difference has to be legible at a glance or the row above reads as two rows
+   of the same thing. So they sit on the line, and the one you are on is the
+   one the line stops under. */
+/* Aligned to the bottom rather than the middle. The tabs are welded to the
+   line — that is what makes them tabs — and the collection chips float above
+   it; centring them meant the two sat on fractional pixels a half-step apart,
+   which is what turned the chips' bottom corners into a smear. */
+.scout-view-bar {
 	display: flex;
-	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 2px;
+	overflow-x: auto;
+	scrollbar-width: none;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.scout-view-bar::-webkit-scrollbar {
+	display: none;
+}
+.scout-view-bar button {
+	display: inline-flex;
 	align-items: center;
-	gap: 8px 12px;
-}
-.scout-kind-pills {
-	display: flex;
-	flex-wrap: wrap;
 	gap: 6px;
-	/* Pushed to the trailing edge of the row it shares with the selects. */
-	margin-inline-start: auto;
-}
-.scout-kind-pills button {
-	padding: 3px 11px;
-	font-size: 12px;
-	border-radius: var(--scout-pill, 999px);
-	background: var(--background-secondary);
-	color: var(--text-muted);
+	flex: 0 0 auto;
+	height: 30px;
+	padding: 0 10px;
+	border-radius: var(--scout-radius, 6px) var(--scout-radius, 6px) 0 0;
+	background: transparent;
 	box-shadow: none;
-	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1;
+	white-space: nowrap;
+	/* The lit tab's own border, transparent until it is lit, so nothing shifts
+	   by a pixel when you switch. */
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
 }
-.scout-kind-pills button:hover {
+.scout-view-bar button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-view-bar button.is-on {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+	font-weight: 550;
+}
+/* Changed since it was saved. A dot rather than a word: the Update button at
+   the end of the row is where the sentence is. */
+.scout-view-dirty {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+}
+/* Views on the left, collections after the divider, the two buttons at the
+   end. The divider is what keeps "a way of looking" and "a set of things" from
+   reading as one undifferentiated row of tabs. */
+.scout-view-split {
+	flex: 0 0 auto;
+	width: 1px;
+	height: 16px;
+	margin: 0 8px;
+	background: var(--background-modifier-border);
+}
+/* Collections are one more tab, not a second row of pills. Its count is the
+   number of shelves, which is the one fact the tab can carry. */
+.scout-view-bar .scout-view-shelves .scout-count {
+	opacity: 0.8;
+}
+/* Pinned to the end of the bar, and stuck there once the tabs outgrow it: the
+   two buttons that are not tabs must not be the two things you have to scroll
+   sideways to find. */
+.scout-view-save,
+.scout-view-manage {
+	position: sticky;
+	z-index: 1;
+	background: var(--background-primary);
+}
+.scout-view-save {
+	margin-inline-start: auto;
+	inset-inline-end: 30px;
+}
+.scout-view-manage {
+	width: 30px;
+	justify-content: center;
+	padding: 0;
+	inset-inline-end: 0;
+}
+.scout-view-save:hover,
+.scout-view-manage:hover {
 	background: var(--background-modifier-hover);
 }
-.scout-kind-pills button.is-on {
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-}
 
+/* In the toolbar, beside the search box. On a narrow pane they wrap among
+   themselves before the strip does. */
+/* `0%` rather than `auto` on the basis, deliberately: a wrapping flex container
+   asked for its content width would push Add and the layout toggle onto a line
+   of their own instead of wrapping its own dropdowns, because a flex line
+   breaks before its items are allowed to shrink. From zero it simply takes what
+   is left and folds its own contents when that is not enough. */
 .scout-filter-controls {
 	display: flex;
 	flex-wrap: wrap;
+	flex: 1 1 0%;
+	min-width: 0;
 	gap: 6px;
 	align-items: center;
 }
+/* Too narrow for one strip: the dropdowns take the line under it and swipe.
+   Folding them instead put five rows of furniture above the shelf, which is the
+   thing you came to look at. */
+@container scout-library (max-width: 1080px) {
+	.scout-filter-controls {
+		flex: 0 0 100%;
+		order: 1;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: none;
+		padding-inline-end: 12px;
+	}
+	.scout-filter-controls::-webkit-scrollbar {
+		display: none;
+	}
+	.scout-filter-controls > * {
+		flex: 0 0 auto;
+	}
+}
+
 /* One height across the row. The selects sized themselves and the buttons
    sized themselves, and the two never agreed. */
 .scout-filter-controls select,
 .scout-filter-controls .scout-toggle,
 .scout-filter-controls .scout-reset {
-	height: var(--scout-control-h, 28px);
+	height: var(--scout-control-h, 30px);
 	box-sizing: border-box;
 	border-radius: var(--scout-radius, 6px);
 }
 .scout-filter-controls select {
-	font-size: 12px;
+	font-size: 13px;
 	max-width: 170px;
 }
 /* Square, sized to the row rather than to the heart inside it. */
@@ -1109,7 +1833,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--scout-control-h, 28px);
+	width: var(--scout-control-h, 30px);
 	padding: 0;
 	color: var(--text-muted);
 }
@@ -1146,18 +1870,189 @@
 	color: var(--text-muted);
 	border-block: 1px solid var(--background-modifier-border);
 }
+/* Under the list. One rule above it is enough down here, and it reads as a
+   summary of what you just scrolled through rather than a header. */
+.scout-stats-foot {
+	margin-top: 4px;
+	border-block-end: 0;
+	color: var(--text-faint);
+}
 .scout-stats strong {
 	color: var(--text-normal);
 	font-variant-numeric: tabular-nums;
 }
 
+/* The first shelf label needs air above it. Sitting one flex gap under the
+   dropdowns, "Horror 59" read as a caption belonging to the filter row rather
+   than as the heading of what came next. */
 .scout-library-body {
 	flex: 1;
 	overflow-y: auto;
+	padding-top: 8px;
 	padding-bottom: 24px;
+}
+
+/* ========================================================= collections page */
+
+/* The other page of the library. It scrolls in the same place the shelf does,
+   and carries its own two buttons rather than borrowing the library toolbar,
+   which is about filtering a list of items and has nothing to say here. */
+.scout-collections-page {
+	flex: 1;
+	overflow-y: auto;
+	padding: 14px 0 24px;
+}
+.scout-collections-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px 18px;
+	flex-wrap: wrap;
+	margin-bottom: 16px;
+}
+.scout-collections-head h3 {
+	margin: 0;
+	font-size: 16px;
+}
+.scout-collections-lede {
+	margin: 3px 0 0;
+	max-width: 60ch;
+	color: var(--text-faint);
+	font-size: 12px;
+	line-height: 1.5;
+}
+.scout-collections-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.scout-collections-actions button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: var(--scout-control-h, 30px);
+}
+
+/* Wide cards rather than poster-shaped ones: a collection is a row of things,
+   and the row is what tells two of them apart at a glance. */
+.scout-collection-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 12px;
+}
+.scout-collection-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	cursor: pointer;
+	transition: background 140ms var(--scout-ease), transform 140ms var(--scout-ease);
+}
+.scout-collection-card:hover {
+	background: var(--background-modifier-hover);
+	transform: translateY(-1px);
+}
+.scout-collection-card:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+/* Up to four covers, side by side and clipped to one strip — a shelf seen end
+   on. Fewer than four simply share the width, so a new collection with two
+   things in it looks like a collection with two things in it. */
+.scout-collection-faces {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
+	gap: 2px;
+	height: 104px;
+	overflow: hidden;
+	border-radius: calc(var(--scout-radius, 6px) - 2px);
+	background: var(--background-primary);
+}
+.scout-collection-face {
+	width: 100%;
+	height: 100%;
+	border-radius: 0;
+}
+.scout-collection-blank {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-faint);
+}
+.scout-collection-line {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	color: var(--text-normal);
+	font-size: 13px;
+	font-weight: 550;
+}
+.scout-collection-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scout-collection-line .scout-count {
+	margin-inline-start: auto;
+}
+.scout-collection-smart {
+	display: inline-flex;
+	color: var(--text-accent);
+}
+.scout-collection-note {
+	margin: -4px 0 0;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	color: var(--text-faint);
+	font-size: 11px;
+	line-height: 1.45;
+}
+/* On the artwork, and only under the pointer: two glyphs sitting on every card
+   at rest turned a page of shelves into a page of toolbars. */
+.scout-collection-card-actions {
+	position: absolute;
+	top: 12px;
+	inset-inline-end: 12px;
+	display: flex;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 120ms var(--scout-ease);
+}
+.scout-collection-card:hover .scout-collection-card-actions,
+.scout-collection-card:focus-within .scout-collection-card-actions {
+	opacity: 1;
+}
+.scout-collection-card-actions button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.62);
+	box-shadow: none;
+	color: #fff;
+}
+.scout-collection-card-actions button:hover {
+	background: rgba(0, 0, 0, 0.82);
+	color: #fff;
 }
 .scout-group + .scout-group {
 	margin-top: 18px;
+}
+/* The mark the list watches for. Nothing is drawn: reaching it is the signal to
+   put the next page in, which happens far enough below the fold that the list
+   only ever looks complete. */
+.scout-more {
+	height: 1px;
 }
 /* Sentence case. Small caps on a heading that is already short, already grey,
    and already set apart by space was two signals doing one job. */
@@ -1294,6 +2189,55 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+/* "Release date TBA" is not news and never changes, so it keeps the shape of a
+   countdown without the colour that says one is running. */
+.scout-entry-countdown.is-vague {
+	font-weight: 400;
+	color: var(--text-faint);
+}
+
+/* What kind of thing this is, in the corner of the poster. A book cover and a
+   game cover are the same rectangle, and the word for it is eleven-point grey
+   two lines down — something you read rather than something you see.
+
+   Its own dark plate, like the status pill opposite: artwork is any colour it
+   likes and a glyph alone would vanish into half of it. */
+.scout-kind-badge {
+	position: absolute;
+	z-index: 2;
+	top: 6px;
+	inset-inline-start: 6px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 21px;
+	height: 21px;
+	border-radius: var(--scout-radius, 6px);
+	background: rgba(0, 0, 0, 0.6);
+	color: rgba(255, 255, 255, 0.92);
+	backdrop-filter: blur(2px);
+}
+
+/* Where the poster is too small to carry the badge, the glyph goes in front of
+   the metadata line instead — same information, a size that fits the row. */
+.scout-entry-meta > .scout-icon,
+.scout-result-meta > .scout-icon,
+.scout-table-kind > .scout-icon {
+	margin-inline-end: 4px;
+	vertical-align: -2px;
+	color: var(--text-faint);
+}
+.scout-entry-meta > .scout-icon svg,
+.scout-result-meta > .scout-icon svg,
+.scout-table-kind > .scout-icon svg {
+	display: inline-block;
+	vertical-align: middle;
+}
+.scout-table-kind {
+	display: inline-flex;
+	align-items: center;
+	white-space: nowrap;
+}
 
 .scout-entry-fav {
 	position: absolute;
@@ -1342,24 +2286,9 @@
 .scout-entries-list .scout-entry-status {
 	display: none;
 }
-/* Lifted clear of the progress bar when the card has both. */
-.scout-entry-status:has(+ .scout-entry-progress) {
-	bottom: 10px;
-}
-
-.scout-entry-progress {
-	position: absolute;
-	z-index: 1;
-	inset-inline: 0;
-	bottom: 0;
-	height: 3px;
-	background: rgba(255, 255, 255, 0.16);
-}
-.scout-entry-progress > span {
-	display: block;
-	height: 100%;
-	background: var(--scout-tone, var(--interactive-accent));
-}
+/* There was a bar across the foot of the artwork here as well as the ring on
+   the badge. Two readings of one number, three pixels apart, and the ring is
+   the better of them — it is already attached to the status it qualifies. */
 
 .scout-entries-list .scout-entry {
 	display: flex;
@@ -1578,9 +2507,14 @@
 	}
 	/* And the labels go back above their controls, which at this width is the
 	   only place left for them. */
-	.scout-manage-row {
+	.scout-manage {
 		grid-template-columns: minmax(0, 1fr);
-		gap: 5px;
+		row-gap: 4px;
+	}
+	/* A row of two stacked cells needs the gap between rows, not within them. */
+	.scout-manage-control,
+	.scout-status-group {
+		margin-bottom: 6px;
 	}
 	.scout-field-list {
 		column-count: 1;
@@ -1591,7 +2525,1386 @@
 	.scout-results-grid {
 		grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
 	}
-	.scout-library-toolbar {
-		flex-wrap: wrap;
+	/* The manage dialog's two columns have nowhere to be at this width. */
+	.scout-organise-lede {
+	margin: -4px 0 0;
+	color: var(--text-muted);
+	font-size: 12px;
+	line-height: 1.5;
+}
+.scout-organise-body {
+		grid-template-columns: minmax(0, 1fr);
 	}
+	.scout-organise-field {
+		grid-template-columns: minmax(0, 1fr);
+		align-items: stretch;
+		gap: 4px;
+	}
+}
+
+/* ============================================================ small screens */
+
+/* Obsidian's own signal, not a width: a phone is a phone in a wide window too,
+   and every rule below is about the finger rather than the pixels.
+   `is-phone` rather than `is-mobile`, because a tablet has the room to keep
+   the desktop shape and looks under-furnished without it. */
+
+/* Everything that can be pressed grows to something a thumb can hit. The
+   controls all size themselves from these two, so this is the whole change —
+   and it has to be made on the same elements that declare them at the top of
+   this file, or the declaration nearer the control wins. */
+body.is-phone .scout-modal,
+body.is-phone .scout-detail-modal,
+body.is-phone .scout-library,
+body.is-phone .scout-home,
+body.is-phone .scout-settings {
+	--scout-control-h: 34px;
+	--scout-segment-h: 30px;
+}
+
+/* The manage dialog's two columns have nowhere to be on a phone. Stated here
+   as well as in the width query because a phone in landscape is a wide
+   viewport and still a phone. */
+body.is-phone .scout-organise-body,
+body.is-phone .scout-organise-section {
+	grid-template-columns: minmax(0, 1fr);
+}
+body.is-phone .scout-organise-field {
+	align-items: stretch;
+	gap: 4px;
+}
+/* Thumb-sized, like every other control on a phone. */
+body.is-phone .scout-organise-field select,
+body.is-phone .scout-organise-field input:not([type="checkbox"]) {
+	height: var(--scout-control-h, 34px);
+	font-size: 15px;
+}
+
+/* One line each, swiped rather than wrapped.
+   Three rows of dropdowns stacked above the library was the "busy" — a filter
+   row that wraps to three lines pushes the thing you came to look at off the
+   screen, and every line of it is furniture. Swiping a row keeps them all
+   reachable and gives the shelf its screen back. */
+body.is-phone .scout-filter-controls,
+body.is-phone .scout-view-bar,
+body.is-phone .scout-stats,
+body.is-phone .scout-home-figures {
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	scrollbar-width: none;
+	/* The last chip should be able to reach the middle of the screen rather
+	   than stopping hard against the edge. */
+	padding-inline-end: 12px;
+	-webkit-overflow-scrolling: touch;
+}
+body.is-phone .scout-filter-controls::-webkit-scrollbar,
+body.is-phone .scout-view-bar::-webkit-scrollbar,
+body.is-phone .scout-stats::-webkit-scrollbar,
+body.is-phone .scout-home-figures::-webkit-scrollbar,
+body.is-phone .scout-home-rail::-webkit-scrollbar {
+	display: none;
+}
+body.is-phone .scout-filter-controls > * {
+	flex: 0 0 auto;
+}
+/* One line: search, add, layout. Wrapping put the two controls on a line of
+   their own under the box, which spent a whole row of a small screen on
+   something that fits beside it — the Add button gives up its word instead.
+   The dropdowns, which stand beside the box on a desktop, take the line under
+   it here and swipe. */
+body.is-phone .scout-library-toolbar {
+	flex-wrap: wrap;
+	gap: 6px;
+}
+body.is-phone .scout-search-wrap {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+body.is-phone .scout-filter-controls {
+	flex: 0 0 100%;
+	order: 1;
+}
+body.is-phone .scout-add {
+	flex: 0 0 auto;
+	width: var(--scout-control-h, 34px);
+	padding: 0;
+	justify-content: center;
+}
+body.is-phone .scout-add-label {
+	display: none;
+}
+body.is-phone .scout-layout-toggle {
+	flex: 0 0 auto;
+}
+/* The sentence explaining what a collection is costs a row of a phone screen
+   and is read once. The cards under it say the same thing by being there. */
+body.is-phone .scout-collections-lede {
+	display: none;
+}
+body.is-phone .scout-collection-cards {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+/* The views bar keeps its tabs one line high and scrolls, like the filters. */
+body.is-phone .scout-view-bar {
+	padding-inline-end: 12px;
+}
+body.is-phone .scout-view-bar > * {
+	flex: 0 0 auto;
+}
+/* The trailing buttons stay put while the tabs scroll under them — the same
+   trick as on the desktop, and on a phone the bar always overflows. */
+body.is-phone .scout-view-save {
+	margin-inline-start: 4px;
+	padding-inline-start: 8px;
+}
+
+/* A shelf, swiped. The grid is right on a screen wide enough to hold a row of
+   it; on a phone seven cards is four wraps of two, and a page of rails like
+   that is a wall. One row you push along is how every phone shows a shelf, and
+   it is the same seven items. */
+body.is-phone .scout-home-rail {
+	display: flex;
+	gap: 10px;
+	overflow-x: auto;
+	scroll-snap-type: x proximity;
+	scrollbar-width: none;
+	padding-inline-end: 12px;
+	-webkit-overflow-scrolling: touch;
+}
+body.is-phone .scout-home-rail > .scout-entry {
+	flex: 0 0 39%;
+	scroll-snap-align: start;
+}
+body.is-phone .scout-home {
+	gap: 20px;
+	padding: 14px 12px 40px;
+}
+body.is-phone .scout-home-hello h2 {
+	font-size: 21px;
+}
+/* The buttons go full width rather than sitting in the corner: at this size
+   there is no corner to sit in, and two half-width buttons are two targets
+   the thumb can reach without stretching. */
+body.is-phone .scout-home-actions {
+	flex: 1 1 100%;
+	margin-inline-start: 0;
+}
+body.is-phone .scout-home-actions button {
+	flex: 1 1 0;
+	justify-content: center;
+}
+body.is-phone .scout-home-figures {
+	gap: 18px;
+}
+body.is-phone .scout-figure dd {
+	font-size: 15px;
+}
+body.is-phone .scout-home-section-head {
+	flex-wrap: wrap;
+}
+/* The note under a section heading is the first thing to go: it explains a row
+   that the row itself explains. */
+body.is-phone .scout-home-note {
+	display: none;
+}
+
+/* The dialog. Obsidian gives it the screen; these are the bits inside it that
+   still assume a desktop's width. */
+body.is-phone .scout-detail-cover {
+	width: 96px;
+	flex-basis: 96px;
+}
+body.is-phone .scout-detail-art {
+	flex-basis: 96px;
+}
+body.is-phone .scout-detail-head h2 {
+	font-size: 21px;
+}
+body.is-phone .scout-detail-actions {
+	gap: 6px;
+}
+body.is-phone .scout-detail-actions .mod-cta {
+	flex: 1 1 auto;
+}
+/* A still, a number, a title, two facts and a synopsis is a lot of row for a
+   phone. The still stays — it is the thing you recognise an episode by — and
+   the facts drop under the title instead of beside it. */
+body.is-phone .scout-episode {
+	gap: 10px;
+	padding: 10px 2px;
+}
+body.is-phone .scout-episode-line {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+}
+body.is-phone .scout-episode-overview {
+	-webkit-line-clamp: 3;
+}
+
+/* The suggestion buttons never appear on hover, because there is no hover:
+   they are simply on. */
+body.is-phone .scout-suggest-actions {
+	opacity: 1;
+}
+
+/* Conditions read as a stack of full-width controls rather than as a sentence
+   that wraps mid-clause. */
+body.is-phone .scout-condition select,
+body.is-phone .scout-condition input {
+	flex: 1 1 130px;
+	max-width: none;
+}
+
+/* ================================================================== home */
+
+/* The hub. Rows of cards down a page, and every row optional — what is on it
+   is decided by the library, so the page is a different page for somebody
+   halfway through two shows than for somebody with a shelf of unread books. */
+
+.scout-home-container {
+	padding: 0;
+	overflow-y: auto;
+}
+.scout-home {
+	display: flex;
+	flex-direction: column;
+	gap: 26px;
+	max-width: 1180px;
+	margin: 0 auto;
+	padding: 22px 22px 48px;
+}
+
+/* ---------------------------------------------------------------- header */
+
+/* Wraps on its own width, not the window's — this is a workspace tab, and a
+   workspace tab is often a narrow pane in a wide window, which is precisely the
+   case a viewport media query cannot see. */
+.scout-home-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 14px 18px;
+	padding-bottom: 20px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.scout-home-hello {
+	flex: 1 1 260px;
+	min-width: 0;
+}
+.scout-home-hello h2 {
+	margin: 0;
+	font-size: 26px;
+	font-weight: 650;
+	line-height: 1.15;
+	letter-spacing: -0.01em;
+}
+.scout-home-hello p {
+	margin: 5px 0 0;
+	font-size: 13px;
+	color: var(--text-muted);
+}
+.scout-home-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	flex: 0 1 auto;
+	/* Right-aligned while they share the line, and first on the line below
+	   once the greeting no longer leaves room for them. */
+	margin-inline-start: auto;
+}
+.scout-home-actions button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: var(--scout-control-h, 30px);
+	padding: 0 13px;
+	box-sizing: border-box;
+	border-radius: var(--scout-radius, 6px);
+	font-size: 13px;
+	line-height: 1;
+}
+/* Numbers across the foot of the header rather than in a box of their own: a
+   dashboard tile for "87 in the library" is a lot of furniture for one number. */
+.scout-home-figures {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 26px;
+	flex: 1 1 100%;
+	margin: 0;
+}
+.scout-figure dt {
+	margin: 0;
+	font-size: 11px;
+	color: var(--text-faint);
+}
+.scout-figure dd {
+	margin: 1px 0 0;
+	font-size: 17px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- sections */
+
+.scout-home-section {
+	display: flex;
+	flex-direction: column;
+	gap: 11px;
+}
+.scout-home-section-head {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.scout-home-section-head h3 {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0;
+	font-size: 15px;
+	font-weight: 600;
+}
+.scout-home-section-head h3 .scout-icon {
+	color: var(--text-muted);
+	align-self: center;
+}
+.scout-home-note {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: 12px;
+	color: var(--text-faint);
+}
+/* Columns only. Everything else — the plate, the poster frame, the title
+   treatment, the hover — comes from `.scout-entries-grid`, because these are
+   the library's cards. They were not, once: the hub grew its own card with its
+   own rounding, its own two-line title and its own hover, and a shelf that
+   looks like a different shelf on every page reads as several unrelated
+   features rather than one library seen from different angles. */
+/* Seven, and then it wraps.
+   A rail holds exactly one row of seven, so the count of cards a row is given
+   and the count a row can show are the same number and nothing is ever left
+   dangling on a line of its own. The `max()` is what keeps that true in a
+   narrow leaf as well: seven columns wherever seven fit at a sensible size,
+   fewer as the pane closes, never eight in a very wide one. */
+.scout-home-rail {
+	grid-template-columns: repeat(
+		auto-fill,
+		minmax(max(112px, (100% - 6 * 12px) / 7), 1fr)
+	);
+	gap: 14px 12px;
+}
+
+/* ------------------------------------------------------------ suggestions */
+
+/* The source's own score, top-left of the poster, opposite the kind glyph. */
+.scout-home-badge {
+	position: absolute;
+	z-index: 2;
+	top: 5px;
+	inset-inline-end: 5px;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	padding: 1px 5px;
+	border-radius: var(--scout-pill, 999px);
+	background: rgba(0, 0, 0, 0.62);
+	color: #fff;
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Add it, ask for more like it, or say no. Across the foot of the poster and
+   only under the pointer: eight always-on button clusters down a row is a row
+   of buttons with some posters behind it. Focus brings the bar back for the
+   keyboard, which never has a pointer to hover with. */
+.scout-suggest-actions {
+	position: absolute;
+	z-index: 2;
+	inset-inline: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 8px 6px 6px;
+	background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+	opacity: 0;
+	transition: opacity 110ms var(--scout-ease);
+}
+.scout-suggestion:hover .scout-suggest-actions,
+.scout-suggest-actions:focus-within {
+	opacity: 1;
+}
+.scout-suggest-actions button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	min-height: 0;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	cursor: pointer;
+}
+.scout-suggest-add,
+.scout-suggest-add:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.scout-suggest-add:hover:not(:disabled) {
+	background: var(--interactive-accent-hover, var(--interactive-accent));
+}
+/* The colour is pinned on every state, hover included. Obsidian's own
+   `button:hover` sets `color: var(--text-normal)`, which on a dark theme is
+   very nearly white — on a white button that is a thumb you cannot see, and
+   only while you are pointing at the thing you meant to press. */
+.scout-suggest-vote,
+.scout-suggest-vote:hover {
+	background: rgba(255, 255, 255, 0.9);
+	color: #1b1b1b;
+}
+.scout-suggest-vote:hover {
+	background: #fff;
+}
+/* Already voted for. Kept marked rather than only acted on, so pressing the
+   same thumb again reads as taking it back. */
+.scout-suggest-vote.is-on,
+.scout-suggest-vote.is-on:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+/* A liked suggestion keeps its bar showing at rest — otherwise the one piece
+   of feedback the row gives back is only visible while you hover the card you
+   have already told it about. */
+.scout-suggestion.is-liked .scout-suggest-actions {
+	opacity: 1;
+}
+
+/* "I've seen it", "not tonight", "never again" — the three things you might
+   want to say that are not a thumb.
+
+   In the opposite corner from the score rather than a fourth button in the bar
+   below: four 26px circles with their gaps come to 122px, and a card on a
+   packed rail narrows to about 107px of artwork. Appears with the bar, on
+   hover, for the same reason the bar does. */
+.scout-suggest-more {
+	position: absolute;
+	top: 5px;
+	inset-inline-start: 5px;
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	min-height: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--scout-pill, 999px);
+	background: rgba(0, 0, 0, 0.62);
+	/* Pinned across hover for the same reason the thumbs are: Obsidian's own
+	   button:hover sets --text-normal, which on a light theme is black on a
+	   near-black scrim. */
+	color: rgba(255, 255, 255, 0.9);
+	box-shadow: none;
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 110ms var(--scout-ease, ease), background 70ms var(--scout-ease, ease);
+}
+.scout-suggestion:hover .scout-suggest-more,
+.scout-suggestion:focus-within .scout-suggest-more {
+	opacity: 1;
+}
+.scout-suggest-more:hover {
+	background: rgba(0, 0, 0, 0.8);
+	color: #fff;
+}
+
+/* Why a thing was suggested, under its title.
+
+   Three tries. Joined with dots into the metadata line, which is one line,
+   nowrap and ellipsed, so the model explained itself and the explanation was
+   cropped to four words. Then a pill, which could not truncate at all: a bare
+   text node in a flex container becomes an anonymous flex item, and
+   `text-overflow` does nothing to one — "Like Insidious: The Red Door" ran out
+   past its own rounded background, which looked exactly like the bug it was.
+
+   Now a line, and the reason it is a line is width. A pill's padding and
+   rounding cost about twenty pixels of a card that has a hundred and fifty, and
+   what is in it is a sentence rather than a tag. The icon says what sort of
+   reason it is, so "Villeneuve" reads as a person rather than as a genre nobody
+   has heard of; the full text is in the card's tooltip and the whole account is
+   in the dialog. */
+.scout-why {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	width: 100%;
+	color: var(--text-faint);
+	font-size: 11px;
+	line-height: 15px;
+}
+.scout-why .scout-icon {
+	flex: 0 0 auto;
+	opacity: 0.8;
+}
+/* The part that actually truncates. It has to be an element of its own for
+   `text-overflow` to have anything to apply to. */
+.scout-why-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+/* Something the model is confident about, rather than a faint resemblance. */
+.scout-why.is-strong {
+	color: var(--text-muted);
+}
+
+.scout-home-more {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+	line-height: 1;
+}
+.scout-home-more:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-home-more:disabled {
+	opacity: 0.6;
+}
+
+/* -------------------------------------------------------------- coming up */
+
+/* A list, not a rail: a countdown is a fact about a day, and days read down. */
+.scout-home-soon {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 6px 14px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.scout-home-soon button {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	height: auto;
+	min-height: 0;
+	padding: 6px 8px;
+	border-radius: var(--scout-radius, 6px);
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	text-align: start;
+	white-space: normal;
+	cursor: pointer;
+}
+.scout-home-soon button:hover {
+	background: var(--background-modifier-hover);
+}
+.scout-home-soon .scout-cover {
+	width: 34px;
+	height: 51px;
+	flex: 0 0 auto;
+	object-fit: cover;
+	border-radius: 4px;
+}
+.scout-home-soon-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.scout-home-soon-text strong {
+	font-size: 13px;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scout-home-soon-text span {
+	font-size: 11px;
+	color: var(--text-faint);
+}
+.scout-home-soon-when {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--text-accent);
+	white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ taste */
+
+.scout-home-taste {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.scout-home-genre {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+	line-height: 1;
+}
+.scout-home-genre:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+/* The ones the model is actually leaning on, marked so the row doubles as an
+   explanation of what "you might like" is working from. */
+.scout-home-genre.is-liked {
+	color: var(--text-normal);
+}
+.scout-home-genre.is-liked .scout-icon {
+	color: var(--interactive-accent);
+}
+
+/* ------------------------------------------------------------------ empty */
+
+.scout-home-empty {
+	align-items: center;
+	max-width: 460px;
+	padding-top: 12vh;
+	text-align: center;
+}
+.scout-home-empty > .scout-icon {
+	color: var(--text-faint);
+}
+.scout-home-empty h2 {
+	margin: 0;
+	font-size: 20px;
+}
+.scout-home-empty p {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+
+/* ==================================================== views & collections */
+
+/* The dialog where both are made. Two features, one editor, because they are
+   the same sentence with a different verb: a view shows what matches, a
+   collection remembers it. */
+
+/* Wider than a normal dialog on purpose: the editor is two dozen small
+   controls, and at the default width they queue up one per line into a page
+   nobody can take in. The extra room buys two or three columns. */
+.scout-organise-modal {
+	width: min(940px, 92vw);
+	max-width: min(940px, 92vw);
+}
+body.is-phone .scout-organise-modal {
+	width: 100%;
+	max-width: 100%;
+}
+
+.scout-organise {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	min-height: 280px;
+}
+.scout-organise-tabs {
+	display: flex;
+	gap: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.scout-organise-tabs button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 11px;
+	background: transparent;
+	box-shadow: none;
+	border-radius: var(--scout-radius, 6px) var(--scout-radius, 6px) 0 0;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+	color: var(--text-muted);
+	font-size: 13px;
+}
+.scout-organise-tabs button.is-on {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+}
+
+/* The list and the editor side by side while there is room, stacked when there
+   is not — a settings dialog is one of the few places in the plugin narrow
+   enough for that to happen on a desktop. */
+.scout-organise-body {
+	display: grid;
+	grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+	gap: 18px;
+	align-items: start;
+}
+.scout-organise-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.scout-organise-list li {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border-radius: var(--scout-radius, 6px);
+}
+.scout-organise-list li.is-on {
+	background: var(--background-modifier-hover);
+}
+.scout-organise-list button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 28px;
+	width: 28px;
+	padding: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 13px;
+}
+.scout-organise-list button:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-organise-list button:disabled {
+	opacity: 0.35;
+}
+.scout-organise-pick {
+	flex: 1 1 auto;
+	justify-content: flex-start !important;
+	width: auto !important;
+	min-width: 0;
+	padding: 0 8px !important;
+	color: var(--text-normal) !important;
+}
+.scout-organise-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.scout-organise-auto {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	color: var(--text-accent);
+	font-size: 11px;
+}
+.scout-organise-new button {
+	width: auto !important;
+	padding: 0 8px !important;
+}
+
+.scout-organise-edit {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+/* Label above its control, in as many columns as the dialog can hold.
+   Side-by-side label and control is the settings-page idiom and it is the
+   wrong one here: it fixes every row to the width of the longest label and
+   forbids a second column, which is how fifteen fields became a scroll. */
+.scout-organise-section {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	align-items: start;
+	gap: 10px 14px;
+}
+/* Headings, prose, and anything that is a row rather than a field. */
+.scout-organise-section > h4,
+.scout-organise-section > p,
+.scout-organise-section > .scout-rule,
+.scout-organise-section > .scout-organise-toggle,
+.scout-organise-section > .scout-organise-actions {
+	grid-column: 1 / -1;
+}
+.scout-organise-field {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+/* Name and glyph share a line: two short boxes, and stacking them cost a row
+   of a dialog that had too many. */
+.scout-organise-identity {
+	display: flex;
+	gap: 10px;
+}
+.scout-organise-identity > .scout-organise-field {
+	flex: 1 1 auto;
+}
+.scout-organise-identity > .scout-organise-icon {
+	flex: 0 0 130px;
+}
+body.is-phone .scout-organise-identity > .scout-organise-icon {
+	flex: 0 0 104px;
+}
+.scout-organise-field > label {
+	display: flex;
+	flex-direction: column;
+	color: var(--text-muted);
+	font-size: 12px;
+	line-height: 1.3;
+}
+/* Not the checkbox: a tick stretched across a column is not a control, it is
+   a mistake anybody can see. */
+.scout-organise-field input:not([type="checkbox"]),
+.scout-organise-field select {
+	width: 100%;
+	min-width: 0;
+}
+.scout-organise-field select,
+.scout-organise-field input:not([type="checkbox"]) {
+	height: 30px;
+	font-size: 13px;
+}
+.scout-organise-note {
+	margin: 0;
+	color: var(--text-faint);
+	font-size: 12px;
+	line-height: 1.5;
+}
+.scout-organise-rule {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.scout-organise-rule,
+.scout-organise-section {
+	margin-top: 6px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+.scout-organise-rule h4,
+.scout-organise-section h4 {
+	margin: 0;
+	font-size: 13px;
+}
+.scout-organise-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px;
+}
+/* The one decision a collection turns on, made to look like a decision: two
+   cards side by side, each saying what it would mean. A checkbox called
+   "automatic" beside an optional rule box said the same thing in a way you had
+   to work out. */
+.scout-organise-modes {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 8px;
+	margin-top: 6px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+.scout-organise-modes button {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	gap: 2px 8px;
+	height: auto;
+	padding: 8px 10px;
+	text-align: start;
+	border-radius: var(--scout-radius, 6px);
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+	background: transparent;
+}
+.scout-organise-modes button.is-on {
+	box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+.scout-organise-mode-name {
+	font-size: 13px;
+	font-weight: 550;
+}
+.scout-organise-mode-note {
+	grid-column: 2;
+	color: var(--text-faint);
+	font-size: 11px;
+	line-height: 1.4;
+}
+.scout-organise-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.scout-organise-foot {
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* -------------------------------------------------------------- the rules */
+
+/* One sentence per row. The indent is the only thing marking a nested group,
+   which is enough at the two levels the editor allows and cheaper to read than
+   a box inside a box. */
+.scout-rule {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.scout-rule.is-nested {
+	margin-inline-start: 14px;
+	padding-inline-start: 12px;
+	border-inline-start: 2px solid var(--background-modifier-border);
+}
+.scout-rule-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.scout-rule-head select {
+	height: 26px;
+	font-size: 12px;
+}
+.scout-condition {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+.scout-condition select,
+.scout-condition input {
+	height: 28px;
+	box-sizing: border-box;
+	font-size: 12px;
+	max-width: 190px;
+}
+.scout-condition input[type="number"] {
+	width: 88px;
+}
+/* The suggest box is a wrapper, so the width the row wants has to be put on
+   it as well as on the input inside it. */
+.scout-condition .scout-combo {
+	max-width: 190px;
+}
+.scout-condition .scout-combo.scout-condition-key {
+	max-width: 130px;
+}
+.scout-condition-key {
+	max-width: 130px;
+}
+.scout-condition-and {
+	color: var(--text-faint);
+	font-size: 12px;
+}
+.scout-rule-drop {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+}
+.scout-rule-drop:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-rule-add {
+	display: flex;
+	gap: 6px;
+}
+.scout-rule-add button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 9px;
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.scout-rule-add button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* --------------------------------------------------------- the suggest box */
+
+/* Replaces `<datalist>`, whose popup the mobile app does not draw at all and
+   whose desktop one is outside the page and so beyond the reach of a height
+   cap — which is what made a vault's worth of genres unreachable. */
+.scout-combo {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+.scout-combo input {
+	width: 100%;
+	min-width: 0;
+}
+.scout-combo-list {
+	position: absolute;
+	top: calc(100% + 3px);
+	inset-inline-start: 0;
+	z-index: 30;
+	/* Wide enough to read a long genre, never wider than the dialog. */
+	min-width: 100%;
+	max-width: min(320px, 80vw);
+	/* The cap and the scroll: the whole point of the control. */
+	max-height: 208px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	margin: 0;
+	padding: 4px;
+	list-style: none;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--scout-radius, 6px);
+	box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+.scout-combo-list li {
+	padding: 5px 8px;
+	border-radius: 4px;
+	color: var(--text-normal);
+	font-size: 12px;
+	line-height: 1.3;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: pointer;
+}
+.scout-combo-list li.is-on {
+	background: var(--background-modifier-hover);
+}
+/* Finger-sized rows, and room for more of them: a phone has the screen for it
+   once the dialog is full width. */
+body.is-phone .scout-combo-list {
+	max-width: none;
+	max-height: 240px;
+}
+body.is-phone .scout-combo-list li {
+	padding: 9px 10px;
+	font-size: 14px;
+}
+
+/* ------------------------------------------------- membership, in the panel */
+
+.scout-collection-picks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.scout-collection-pick {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 12px;
+	line-height: 1;
+}
+.scout-collection-pick:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-collection-pick.is-on {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+/* The way out of the list of shelves that exist. Outlined rather than filled,
+   because it is not one of them. */
+.scout-collection-add {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: var(--scout-pill, 999px);
+	background: transparent;
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.scout-collection-add:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* A smart collection this item does not qualify for. Shown rather than hidden:
+   knowing the shelf exists and that this is not for it is worth a greyed
+   chip, and hiding it makes the row's contents depend on the item. */
+.scout-collection-pick:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+.scout-collection-pick:disabled:hover {
+	background: var(--background-secondary);
+	color: var(--text-muted);
+}
+
+/* One row of the add-to-collection picker: title over the facts that tell two
+   films of the same name apart. */
+.scout-pick-row {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+.scout-pick-title {
+	font-size: 14px;
+}
+.scout-pick-meta {
+	color: var(--text-faint);
+	font-size: 11px;
+}
+
+.scout-prompt-input {
+	width: 100%;
+	margin-bottom: 4px;
+}
+
+/* ------------------------------------------------- what Scout has learned */
+
+/* The panel that says what the model believes, so it can be argued with.
+
+   This row used to list the genres the library holds most of, with a heart on
+   the ones it rated well — a fact about the shelf and not about the model, and
+   the difference between those two is the entire feature. It also had no styling
+   whatsoever: the bars and counts rendered as run-together text ("Robert
+   Pattinson3"), which is what a panel looks like when its markup lands before
+   its stylesheet does.
+
+   Three columns, because a taste has three interesting parts, and the third is
+   the one nothing has ever shown anybody. */
+.scout-taste {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 10px;
+}
+.scout-taste-col {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	padding: 11px 12px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--scout-radius, 8px);
+	background: var(--background-secondary);
+}
+.scout-taste-col h4 {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	color: var(--text-normal);
+}
+.scout-taste-col h4 .scout-icon {
+	color: var(--text-muted);
+}
+.scout-taste-col.is-against h4 .scout-icon {
+	color: var(--text-error, var(--text-muted));
+}
+/* One line each, and worth the space: three column headings out of context read
+   as three unrelated lists of words. */
+.scout-taste-blurb {
+	margin: 0 0 7px;
+	font-size: 10.5px;
+	line-height: 1.35;
+	color: var(--text-faint);
+}
+.scout-taste-rows {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+/* A labelled bar rather than a bar and a label. Ten of these stacked in three
+   columns is a lot of furniture for one number each, and the fill sitting behind
+   the words is one object where a strip beside them is two. */
+.scout-taste-rows li {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding: 3px 7px;
+	border-radius: var(--scout-radius, 5px);
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 17px;
+}
+.scout-taste-fill {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+	border-radius: inherit;
+	background: var(--interactive-accent);
+	opacity: 0.22;
+	pointer-events: none;
+}
+.scout-taste-col.is-against .scout-taste-fill {
+	background: var(--text-error, var(--interactive-accent));
+	opacity: 0.16;
+}
+.scout-taste-label {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--text-normal);
+}
+/* How many of your own titles it was learned from, which is the difference
+   between a pattern and a fluke and so belongs on the face of it. */
+.scout-taste-count {
+	position: relative;
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------- why this is here */
+
+/* The whole account, in the one place with room for it.
+
+   A rail card fits one reason of about twenty characters, so the model would
+   recognise four things and mention one. Marks against it are here too, on
+   purpose: a recommender that will only say what it likes about a suggestion is
+   one you cannot check. */
+.scout-detail-why ul {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.scout-detail-why li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	font-size: 12.5px;
+	line-height: 1.4;
+	color: var(--text-normal);
+}
+.scout-detail-why li .scout-icon {
+	flex: 0 0 auto;
+	color: var(--text-muted);
+}
+.scout-detail-why li.is-against {
+	color: var(--text-muted);
+}
+.scout-detail-why li.is-against .scout-icon {
+	color: var(--text-error, var(--text-muted));
+}
+.scout-detail-why-mark {
+	flex: 0 0 auto;
+	padding: 0 6px;
+	border-radius: var(--scout-pill, 999px);
+	background: var(--background-modifier-border);
+	color: var(--text-faint);
+	font-size: 10px;
+	line-height: 15px;
+	text-transform: lowercase;
+}
+
+/* ------------------------------------------------------- series, folded */
+
+/* Collapsed by default: an eight-film series is a grid of eight posters, and put
+   out flat it was the largest thing in the dialog — taller than the synopsis and
+   taller than the panel you came here to edit, about a film you already own.
+
+   The whole heading is the control. A caret alone on the end of a title is a
+   target the width of a caret, and the thing being clicked is the section. */
+/* Selected with the section, not on its own: `button` is a type selector, so a
+   theme's own `.theme-dark button` outranks a single class of ours and put its
+   plate and its pill rounding back — the heading was a floating lozenge with its
+   text against the edges, and none of it was in this file. Two classes beat one
+   class and a type, so this is the rule that actually lands whatever the theme
+   has to say about buttons. */
+.scout-series > .scout-series-toggle {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	width: 100%;
+	margin: 20px 0 0;
+	/* A header, so it is given the room a header needs. */
+	padding: 8px 10px;
+	border: 0;
+	border-radius: var(--scout-radius, 6px);
+	background: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.4;
+	text-align: start;
+	cursor: pointer;
+}
+.scout-series > .scout-series-toggle:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.scout-series > .scout-series-toggle > .scout-icon:first-child {
+	color: var(--text-muted);
+}
+.scout-series-caret {
+	display: inline-flex;
+	margin-inline-start: auto;
+	color: var(--text-faint);
+}
+.scout-series.is-open .scout-series-strip {
+	margin-top: 10px;
+}
+/* Folded away by CSS as well as by the attribute, and the attribute alone is why
+   the section did not fold at all: `.scout-entries-grid` sets `display: grid`,
+   and an author declaration beats the browser's own `[hidden] { display: none }`
+   whatever the specificity. So `hidden` was correct — it told a screen reader
+   the truth, and it hid nothing. Both are kept: this hides it, that says so. */
+.scout-series:not(.is-open) .scout-series-strip {
+	display: none;
 }

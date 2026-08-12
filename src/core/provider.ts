@@ -1,6 +1,14 @@
 import type { HttpClient } from "./http";
 import type { SettingDescriptor, SettingsScope } from "./settings/types";
-import type { FieldSchema, MediaItem, MediaKind, MediaRef } from "./types";
+import type {
+	Series,
+	EpisodeInfo,
+	FieldSchema,
+	MediaItem,
+	MediaKind,
+	MediaRef,
+	SeasonInfo,
+} from "./types";
 
 /**
  * Provider contracts.
@@ -62,6 +70,122 @@ export interface Resolvable {
 	resolve(url: string, ctx: RequestContext): Promise<MediaItem>;
 }
 
+/**
+ * Series that come in seasons and episodes.
+ *
+ * Two calls rather than one: a show's season list is small and comes with the
+ * record itself, while its episodes are a request per season and nobody opens
+ * a dialog wanting all nine hundred at once.
+ */
+export interface Episodic {
+	seasons(ref: MediaRef, ctx: RequestContext): Promise<SeasonInfo[]>;
+	episodes(
+		ref: MediaRef,
+		season: number,
+		ctx: RequestContext,
+	): Promise<EpisodeInfo[]>;
+}
+
+/** Sources that know an item belongs to a larger set — a film series, mostly. */
+export interface SeriesAware {
+	series(ref: MediaRef, ctx: RequestContext): Promise<Series | null>;
+}
+
+/**
+ * Sources that can answer "what else is like this one".
+ *
+ * One item in, a handful out. Scout does the choosing — which of your titles to
+ * ask about, and which of the answers are worth showing — because only the
+ * library knows what you have already seen and what you actually like. The
+ * source is asked a narrow question it happens to be very good at.
+ */
+export interface Recommendable {
+	similar(ref: MediaRef, ctx: RequestContext): Promise<MediaItem[]>;
+}
+
+/**
+ * A thing a catalogue knows by name, and by an id if it gave us one.
+ *
+ * TMDB takes keyword and crew *ids* in a query and returns names in a payload,
+ * so a term is only usable as a filter if the id was kept when it was read.
+ */
+export interface TermRef {
+	name: string;
+	id?: string;
+}
+
+/** What to ask a catalogue for when there is no one title to ask about. */
+export interface DiscoverQuery {
+	kind: MediaKind;
+	/** Genre names, best first. Translated to whatever the source calls them. */
+	genres?: readonly string[];
+	/** Genre names to keep out of the results. */
+	without?: readonly string[];
+	/**
+	 * Keywords or tags, best first.
+	 *
+	 * The reason enrichment exists. A genre says which shelf; a keyword says
+	 * what the thing is actually about, and "you keep going for time loops" is
+	 * not a sentence a model built from eighteen genres can ever produce.
+	 */
+	keywords?: readonly TermRef[];
+	/** Keywords to keep out. */
+	withoutKeywords?: readonly TermRef[];
+	/** Whoever made it — directors and creators. */
+	crew?: readonly TermRef[];
+	/** Whoever is in it. */
+	people?: readonly TermRef[];
+	/** Nothing scoring below this, out of ten. */
+	minRating?: number;
+	/** Nothing older than this year. */
+	fromYear?: number;
+	/** Bumped to walk further down the same list rather than repeat it. */
+	page?: number;
+	/** How to pick from what matches. Defaults to what most people liked. */
+	sort?: "popular" | "rated" | "recent";
+}
+
+/** What a source can say about a thing beyond what a note would record. */
+export interface ProviderTraits {
+	keywords?: TermRef[];
+	people?: TermRef[];
+	directors?: TermRef[];
+	studios?: string[];
+	series?: { id: string; name: string; total?: number };
+	language?: string;
+	runtime?: number;
+	/** Siblings the source says belong with it — sequels, prequels, side stories. */
+	related?: MediaRef[];
+}
+
+/**
+ * Sources that can say more about a thing than any note ever records.
+ *
+ * The default note templates write a genre list and a director, because that
+ * is what a person wants to read. It is nowhere near enough to recommend on:
+ * "Drama, Thriller" is shared by a third of everything ever made. This is how
+ * the model gets the keywords, the cast and the crew — kept in Scout's own
+ * data file and never written back into the vault, because they are the
+ * model's working notes and not yours.
+ */
+export interface Enrichable {
+	traits(ref: MediaRef, ctx: RequestContext): Promise<ProviderTraits | null>;
+}
+
+/**
+ * Sources that can be asked for titles by description rather than by name.
+ *
+ * The complement of `Recommendable`, and the reason both exist. "What else is
+ * like this one" can only ever return neighbours of things you already have,
+ * which on a small or lopsided library is a very small world — ask it enough
+ * times and it hands back the same fifty films. Asking the catalogue directly
+ * for well-liked science fiction reaches everything the source knows, including
+ * the corners nothing you own happens to border.
+ */
+export interface Discoverable {
+	discover(query: DiscoverQuery, ctx: RequestContext): Promise<MediaItem[]>;
+}
+
 /** For providers behind OAuth rather than a pasted token. */
 export interface Authenticated {
 	authenticate(): Promise<void>;
@@ -79,6 +203,32 @@ export function isDetailable(p: MediaProvider): p is MediaProvider & Detailable 
 
 export function isResolvable(p: MediaProvider): p is MediaProvider & Resolvable {
 	return typeof (p as Partial<Resolvable>).resolve === "function";
+}
+
+export function isEpisodic(p: MediaProvider): p is MediaProvider & Episodic {
+	return typeof (p as Partial<Episodic>).episodes === "function";
+}
+
+export function isSeriesAware(
+	p: MediaProvider,
+): p is MediaProvider & SeriesAware {
+	return typeof (p as Partial<SeriesAware>).series === "function";
+}
+
+export function isRecommendable(
+	p: MediaProvider,
+): p is MediaProvider & Recommendable {
+	return typeof (p as Partial<Recommendable>).similar === "function";
+}
+
+export function isDiscoverable(
+	p: MediaProvider,
+): p is MediaProvider & Discoverable {
+	return typeof (p as Partial<Discoverable>).discover === "function";
+}
+
+export function isEnrichable(p: MediaProvider): p is MediaProvider & Enrichable {
+	return typeof (p as Partial<Enrichable>).traits === "function";
 }
 
 export function isAuthenticated(

@@ -3,8 +3,10 @@ import type { ScoutContext } from "../core/context";
 import { isResolvable } from "../core/provider";
 import { ALL_MEDIA_KINDS, MEDIA_KIND_LABELS } from "../core/types";
 import { ScoutDetailModal } from "../ui/detailModal";
+import { openHome } from "../ui/homeView";
 import { openLibrary } from "../ui/libraryView";
 import { findMissingSourceIds } from "../ui/linkNotes";
+import { refreshLibrary } from "../ui/refreshNotes";
 import { ScoutSearchModal } from "../ui/searchModal";
 
 /**
@@ -21,6 +23,12 @@ export function registerCommands(plugin: Plugin, ctx: ScoutContext): void {
 		id: "search",
 		name: "Search all sources",
 		callback: () => new ScoutSearchModal(ctx).open(),
+	});
+
+	plugin.addCommand({
+		id: "open-home",
+		name: "Open home",
+		callback: () => void openHome(plugin.app),
 	});
 
 	plugin.addCommand({
@@ -68,6 +76,12 @@ export function registerCommands(plugin: Plugin, ctx: ScoutContext): void {
 		id: "link-notes-to-sources",
 		name: "Find source ids for notes that have none",
 		callback: () => void findMissingSourceIds(ctx),
+	});
+
+	plugin.addCommand({
+		id: "refresh-library",
+		name: "Refresh notes that are due a check",
+		callback: () => void refreshLibrary(ctx),
 	});
 
 	plugin.addCommand({

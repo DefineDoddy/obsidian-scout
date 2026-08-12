@@ -8,6 +8,7 @@ import {
 } from "../../library/config";
 import { ALL_MEDIA_KINDS, MEDIA_KIND_LABELS } from "../../types";
 import { findMissingSourceIds } from "../../../ui/linkNotes";
+import { refreshLibrary } from "../../../ui/refreshNotes";
 import { addDropdown, addSlider, addText, addToggle } from "../controls";
 import type { SettingsSection } from "./types";
 
@@ -25,7 +26,7 @@ export const librarySection: SettingsSection = {
 	intro: "The library lists notes that are already in your vault. Nothing is stored outside the notes themselves.",
 
 	render(container, ctx) {
-		const { settings, library, rerender } = ctx;
+		const { settings, library, refresher, rerender } = ctx;
 		const config = settings.library();
 
 		/* ------------------------------------------------------ what counts */
@@ -95,6 +96,63 @@ export const librarySection: SettingsSection = {
 					.setDisabled(unlinked === 0)
 					.onClick(async () => {
 						await findMissingSourceIds(ctx);
+						rerender();
+					}),
+			);
+
+		/* --------------------------------------------------- staying current */
+
+		new Setting(container).setName("Keeping notes up to date").setHeading();
+
+		container.createEl("p", {
+			text: "A note holds what its source knew on the day it was made, and some of that moves — a score settles over the first month, a date slips, a show gains a season. Scout re-asks a note as often as its own facts warrant: every few days for something not out yet or a series you are part-way through, every few months for a film from the nineties. Only facts the source owns are written; your ratings, statuses, dates, progress, and thoughts are never touched.",
+			cls: "scout-tab-intro",
+		});
+
+		addToggle(container, {
+			name: "Refresh in the background",
+			desc: "Runs a while after Obsidian starts, and every six hours it stays open.",
+			value: config.autoRefresh,
+			onChange: (v) => settings.setLibrary("autoRefresh", v),
+		});
+
+		addSlider(container, {
+			name: "Notes per run",
+			desc: "The ceiling on one run, so a large library spreads over days instead of arriving as one burst of requests.",
+			value: config.refreshBudget,
+			min: 5,
+			max: 100,
+			step: 5,
+			onChange: (v) => settings.setLibrary("refreshBudget", v),
+		});
+
+		const due = refresher.dueCount();
+		const eligible = refresher.eligibleCount();
+		new Setting(container)
+			.setName("Refresh now")
+			.setDesc(
+				eligible === 0
+					? "No note records which source it came from yet, so there is nothing to ask about."
+					: due === 0
+						? `Nothing is due. All ${eligible} linked note(s) have been checked recently.`
+						: `${due} of ${eligible} linked note(s) are due a check.`,
+			)
+			.addButton((b) =>
+				b
+					.setButtonText("Refresh what is due")
+					.setDisabled(due === 0)
+					.onClick(async () => {
+						await refreshLibrary(ctx);
+						rerender();
+					}),
+			)
+			.addButton((b) =>
+				b
+					.setButtonText("Refresh everything")
+					.setWarning()
+					.setDisabled(eligible === 0)
+					.onClick(async () => {
+						await refreshLibrary(ctx, { all: true });
 						rerender();
 					}),
 			);

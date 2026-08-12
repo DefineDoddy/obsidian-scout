@@ -115,3 +115,59 @@ export function releaseCountdown(
 	// no longer news, so only a later one is worth a line.
 	return parsed.year > now.getFullYear() ? `Out in ${parsed.year}` : null;
 }
+
+/**
+ * What a source says about something it has not released.
+ *
+ * TMDB and its like carry a production status alongside the date, and while a
+ * date is missing that word is the only thing anyone knows. Only the states
+ * that mean "not out" are worth a line — "Released" and "Ended" are what every
+ * other item in the library is.
+ */
+const UPCOMING: Record<string, string> = {
+	planned: "Planned",
+	rumored: "Rumoured",
+	rumoured: "Rumoured",
+	announced: "Announced",
+	"in production": "In production",
+	"post production": "In post-production",
+	"post-production": "In post-production",
+	upcoming: "Upcoming",
+	"not yet released": "Not yet released",
+	"not yet aired": "Not yet aired",
+	"not yet published": "Not yet published",
+};
+
+export function productionLine(status: string | undefined): string | null {
+	if (!status) return null;
+	return UPCOMING[status.trim().toLowerCase()] ?? null;
+}
+
+/**
+ * The one line to show about when something arrives, or null when there is
+ * nothing to say.
+ *
+ * Three cases, in the order they are worth knowing: a date gives a countdown,
+ * a source that says it is still being made gives that, and an item with no
+ * date at all — which is what an announcement looks like before anyone has
+ * picked a day — gets a plain admission that nobody knows yet.
+ *
+ * `year` is what stops that last case swallowing the library: something with a
+ * year has a release, and a past one means it happened, whatever else the note
+ * is missing.
+ */
+export function releaseLine(
+	raw: string | undefined,
+	year: number | undefined,
+	status?: string,
+	now: Date = new Date(),
+): string | null {
+	const countdown = releaseCountdown(raw, now);
+	if (countdown) return countdown;
+	const production = productionLine(status);
+	if (production) return production;
+	// A parsable date or a year both mean the release is known and behind us —
+	// the countdown above would have caught it otherwise.
+	if (parse(raw) || year !== undefined) return null;
+	return "Release date TBA";
+}

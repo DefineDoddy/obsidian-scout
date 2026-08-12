@@ -1,7 +1,11 @@
 import type {
 	Detailable,
+	Discoverable,
+	DiscoverQuery,
+	Enrichable,
 	MediaProvider,
 	ProviderContext,
+	ProviderTraits,
 	RequestContext,
 	Resolvable,
 	Searchable,
@@ -46,6 +50,7 @@ interface SearchDoc {
 	ratings_count?: number;
 	publisher?: string[];
 	language?: string[];
+	author_key?: string[];
 }
 
 interface WorkDetails {
@@ -130,7 +135,13 @@ const SEARCH_FIELDS = [
 ].join(",");
 
 export class OpenLibraryProvider
-	implements MediaProvider, Searchable, Detailable, Resolvable
+	implements
+		MediaProvider,
+		Searchable,
+		Detailable,
+		Resolvable,
+		Discoverable,
+		Enrichable
 {
 	readonly id = "openlibrary";
 	readonly name = "Open Library (books)";
@@ -166,6 +177,107 @@ export class OpenLibraryProvider
 		);
 
 		return (response.docs ?? []).filter((d) => d.key).map(toItem);
+	}
+
+	/**
+	 * The catalogue by description, which books did not have until now.
+	 *
+	 * Open Library has no "more like this" endpoint, so without this books were
+	 * completely invisible to the recommendations — neither half of the row
+	 * could ask about them, and a library of two hundred books got suggested
+	 * films. Its search takes a Lucene-ish query, so subjects, authors and a
+	 * ratings floor all go in one `q`.
+	 */
+	async discover(
+		query: DiscoverQuery,
+		ctx: RequestContext,
+	): Promise<MediaItem[]> {
+		const clauses: string[] = [];
+		const quoted = (value: string) => `"${value.replace(/"/g, "")}"`;
+
+		// Subjects are what Open Library has instead of genres, and they are the
+		// same field either sort of term lands in.
+		const subjects = [
+			...(query.keywords ?? []).map((one) => one.name),
+			...(query.genres ?? []),
+		].slice(0, 3);
+		if (subjects.length > 0) {
+			clauses.push(`(${subjects.map((s) => `subject:${quoted(s)}`).join(" OR ")})`);
+		}
+		for (const person of (query.crew ?? query.people ?? []).slice(0, 1)) {
+			clauses.push(`author_name:${quoted(person.name)}`);
+		}
+		for (const out of (query.without ?? []).slice(0, 2)) {
+			clauses.push(`NOT subject:${quoted(out)}`);
+		}
+		// A ratings floor: a five-star average from three people is not a
+		// recommendation, and Open Library is full of them.
+		//
+		// One range clause, and it has to be one. Open Library's search answers
+		// `500 Internal Server Error` to any query carrying a range on both
+		// `ratings_count` and `ratings_average` — either alone is fine, bounded or
+		// open-ended, and together it fails every time. `discoverPlans` always sets
+		// `minRating`, so every book request the row has ever made threw, and the
+		// engine's own "one source being unreachable must not empty the row" then
+		// swallowed it: the hub showed films and television and gave no sign that
+		// the shelf it could not reach was the books.
+		//
+		// `minRating` is honoured by the sort instead. Sorted by rating with a
+		// count floor, the first page of a subject comes back at 4.3–4.6 out of
+		// five with dozens to hundreds of ratings behind each, which is what the
+		// floor was for.
+		clauses.push("ratings_count:[20 TO *]");
+		if (query.fromYear !== undefined) {
+			clauses.push(`first_publish_year:[${query.fromYear} TO *]`);
+		}
+
+		const sort = query.sort === "recent" ? "new" : "rating";
+		const url =
+			`${API}/search.json?q=${encodeURIComponent(clauses.join(" AND "))}` +
+			`&sort=${sort}&limit=20&page=${Math.max(1, query.page ?? 1)}` +
+			`&fields=${SEARCH_FIELDS}`;
+
+		const response = await this.ctx.http.getJson<{ docs?: SearchDoc[] }>(url, {
+			signal: ctx.signal,
+			cacheTtlMs: 12 * 60 * 60 * 1000,
+		});
+		return (response.docs ?? []).filter((d) => d.key).map(toItem);
+	}
+
+	/**
+	 * The subjects, the author, the length.
+	 *
+	 * Open Library's subject list is long and noisy — a work can carry a
+	 * hundred, half of them library-catalogue artefacts — so it is read from
+	 * the work record, where the list is the curated one, and capped.
+	 */
+	async traits(
+		ref: MediaRef,
+		ctx: RequestContext,
+	): Promise<ProviderTraits | null> {
+		const response = await this.ctx.http.getJson<{ docs?: SearchDoc[] }>(
+			`${API}/search.json?q=key:/works/${encodeURIComponent(ref.id)}&limit=1&fields=${SEARCH_FIELDS},author_key`,
+			{ signal: ctx.signal, cacheTtlMs: 30 * 60 * 1000 },
+		);
+		const doc = response.docs?.[0];
+		if (!doc) return null;
+
+		const authors = doc.author_name ?? [];
+		const keys = doc.author_key ?? [];
+		return {
+			keywords: (doc.subject ?? []).slice(0, 12).map((name) => ({ name })),
+			directors: authors.slice(0, 3).map((name, at) => ({
+				name,
+				...(keys[at] ? { id: keys[at] } : {}),
+			})),
+			people: [],
+			studios: doc.publisher?.slice(0, 1) ?? [],
+			...(doc.language?.[0] ? { language: doc.language[0] } : {}),
+			// Pages stand in for a runtime; the bands are read off the same scale.
+			...(doc.number_of_pages_median
+				? { runtime: doc.number_of_pages_median }
+				: {}),
+		};
 	}
 
 	async details(ref: MediaRef, ctx: RequestContext): Promise<MediaItem> {

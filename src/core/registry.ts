@@ -1,5 +1,18 @@
-import { isResolvable, isSearchable } from "./provider";
-import type { MediaProvider, Resolvable, Searchable } from "./provider";
+import {
+	isDiscoverable,
+	isRecommendable,
+	isResolvable,
+	isSearchable,
+	isSeriesAware,
+} from "./provider";
+import type {
+	Discoverable,
+	MediaProvider,
+	Recommendable,
+	Resolvable,
+	Searchable,
+	SeriesAware,
+} from "./provider";
 import type { MediaKind } from "./types";
 
 /**
@@ -34,6 +47,27 @@ export class ProviderRegistry {
 		return this.configured()
 			.filter(isSearchable)
 			.filter((p) => !kind || p.kinds.includes(kind));
+	}
+
+	/** Configured providers that can be asked for titles by description. */
+	discoverable(kind: MediaKind): (MediaProvider & Discoverable)[] {
+		return this.configured()
+			.filter(isDiscoverable)
+			.filter((p) => p.kinds.includes(kind));
+	}
+
+	/** Configured providers that can answer "what else is like this one". */
+	recommendable(kind: MediaKind): (MediaProvider & Recommendable)[] {
+		return this.configured()
+			.filter(isRecommendable)
+			.filter((p) => p.kinds.includes(kind));
+	}
+
+	/** Configured providers that know when something belongs to a larger set. */
+	seriesAware(kind: MediaKind): (MediaProvider & SeriesAware)[] {
+		return this.configured()
+			.filter(isSeriesAware)
+			.filter((p) => p.kinds.includes(kind));
 	}
 
 	/** The first configured provider that recognizes this URL. */

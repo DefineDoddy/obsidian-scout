@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scout-harness",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8842",
+        "--directory",
+        "C:/Users/brand/Documents/Personal Vault/.obsidian/plugins/obsidian-scout"
+      ],
+      "port": 8842
+    }
+  ]
+}

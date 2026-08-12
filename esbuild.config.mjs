@@ -11,6 +11,24 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = process.argv[2] === "production";
 
+/**
+ * Sourcemaps only when asked for: `node esbuild.config.mjs --sourcemap`.
+ *
+ * They used to be on for every dev build, and they are the reason the plugin
+ * stopped loading on a phone. `outdir` is the plugin folder — it has to be, or
+ * the installed plugin is stale — so the file the watcher writes is the file
+ * Obsidian loads and the file that gets synced to every other device. An inline
+ * map turns 460KB of bundle into 5.4MB of base64, and a phone asked to parse and
+ * evaluate that has to hold the whole thing in memory at once. Desktop shrugged;
+ * mobile did not, and it looked like a code problem because every build after the
+ * codebase grew past a certain size failed the same way.
+ *
+ * Dev builds are still unminified and still readable. What is gone is the four
+ * and a half megabytes of it that only a desktop debugger was ever going to
+ * read.
+ */
+const maps = process.argv.includes("--sourcemap");
+
 const context = await esbuild.context({
 	banner: { js: banner },
 	entryPoints: ["src/main.ts"], // CSS handled by Tailwind CLI (outputs styles.css)
@@ -34,7 +52,7 @@ const context = await esbuild.context({
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",
-	sourcemap: prod ? false : "inline",
+	sourcemap: !prod && maps ? "inline" : false,
 	treeShaking: true,
 	// Always build to the plugin root: Obsidian loads main.js from there, so a
 	// production build that only wrote to dist/ left the installed plugin stale.

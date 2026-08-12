@@ -1,10 +1,11 @@
-import { Notice } from "obsidian";
+import { Menu, Notice } from "obsidian";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ScoutContext } from "../../core/context";
 import { isAbortError } from "../../core/http";
 import type { LibraryEntry } from "../../core/library/entry";
 import { isDetailable } from "../../core/provider";
-import { releaseCountdown } from "../../core/library/release";
+import { releaseLine } from "../../core/library/release";
+import { rankReasons, reasonIcon, type Reason } from "../../core/library/reasons";
 import {
 	MEDIA_KIND_LABELS,
 	type MediaItem,
@@ -12,9 +13,18 @@ import {
 	type MediaRef,
 } from "../../core/types";
 import { confirmModal } from "../confirm";
-import ManagePanel from "./ManagePanel";
+import { hasEpisodes } from "../episodes";
+import ManagePanel, { ReplayControl, ReplayCount } from "./ManagePanel";
 import { formatRating } from "./Rating";
-import { Cover, Icon, resolveImage, useLibraryEntries } from "./shared";
+import { EpisodeGuide, EpisodeGuideLink } from "./Episodes";
+import { SeriesStrip } from "./SeriesStrip";
+import {
+	Cover,
+	Icon,
+	KIND_ICONS,
+	resolveImage,
+	useLibraryEntries,
+} from "./shared";
 
 /**
  * One item, in full.
@@ -31,6 +41,8 @@ export interface ItemDetailProps {
 	item?: MediaItem;
 	/** A note, when opened from the library. Kept as a path so it stays live. */
 	entryPath?: string;
+	/** Why the suggestion row put this up, when that is where it came from. */
+	reasons?: readonly Reason[];
 	onClose: () => void;
 }
 
@@ -42,6 +54,8 @@ interface Presented {
 	year?: number;
 	/** As written, so a countdown can tell a known day from a bare year. */
 	releaseDate?: string;
+	/** The source's production status — "Planned", "In production". */
+	releaseStatus?: string;
 	sourceRating?: number;
 	cover?: string;
 	description?: string;
@@ -75,6 +89,8 @@ function present(
 		subtitle: item?.subtitle,
 		year: entry?.year ?? item?.year,
 		releaseDate: entry?.releaseDate ?? item?.releaseDate,
+		releaseStatus:
+			typeof item?.extra?.status === "string" ? item.extra.status : undefined,
 		// The live figure when a source answered, otherwise whatever the note
 		// recorded on the day it was made.
 		sourceRating: item?.rating ?? entry?.sourceRating,
@@ -86,12 +102,36 @@ function present(
 	};
 }
 
-const DESCRIPTION_CLAMP = 420;
+/**
+ * A synopsis is cut off in lines now, not characters, so the fold lands where
+ * the text actually runs out of room — a fixed character count put it in a
+ * different place for every item and, at any width but the one it was tuned
+ * at, halfway through a line. How many lines is `.scout-detail-description`'s
+ * business; all this side needs to know is whether the cut happened, which is
+ * a question only the laid-out element can answer.
+ */
+function useOverflowing(
+	ref: React.RefObject<HTMLElement | null>,
+	live: boolean,
+	deps: unknown[],
+): boolean {
+	const [cut, setCut] = useState(false);
+	useEffect(() => {
+		const el = ref.current;
+		// Once unfolded the element is its full height and would measure as
+		// fitting, which would take away the control that unfolded it.
+		if (!el || !live) return;
+		setCut(el.scrollHeight - el.clientHeight > 2);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [live, ...deps]);
+	return cut;
+}
 
 export default function ItemDetail({
 	ctx,
 	item,
 	entryPath,
+	reasons,
 	onClose,
 }: ItemDetailProps): React.ReactElement {
 	// Subscribing keeps the panel live: create a note and the manage controls
@@ -101,6 +141,14 @@ export default function ItemDetail({
 	const [enriched, setEnriched] = useState<MediaItem | undefined>(undefined);
 	const [busy, setBusy] = useState(false);
 	const [expanded, setExpanded] = useState(false);
+	/**
+	 * The dialog turns over rather than growing a fold.
+	 *
+	 * A season of twenty-four episodes cannot share a dialog with a synopsis
+	 * and an edit panel without one of the three being squeezed into a strip,
+	 * so the guide takes the whole thing and gives it back on the way out.
+	 */
+	const [page, setPage] = useState<"detail" | "episodes">("detail");
 
 	const entry = entryPath
 		? ctx.library.byPath(entryPath)
@@ -155,8 +203,25 @@ export default function ItemDetail({
 		[ctx.app, view?.cover, entry?.path],
 	);
 
+	const synopsis = useRef<HTMLParagraphElement>(null);
+	const long = useOverflowing(synopsis, !expanded, [view?.description]);
+
 	if (!view) {
 		return <p className="scout-message">Nothing to show.</p>;
+	}
+
+	const episodic = hasEpisodes(ctx, source, view.kind);
+
+	if (page === "episodes" && source && episodic) {
+		return (
+			<EpisodeGuide
+				ctx={ctx}
+				source={source}
+				entry={entry}
+				title={view.title}
+				onBack={() => setPage("detail")}
+			/>
+		);
 	}
 
 	const create = async () => {
@@ -176,22 +241,24 @@ export default function ItemDetail({
 		}
 	};
 
-	const countdown = releaseCountdown(view.releaseDate);
-	const long = (view.description?.length ?? 0) > DESCRIPTION_CLAMP;
-	const description =
-		long && !expanded
-			? `${view.description?.slice(0, DESCRIPTION_CLAMP).trimEnd()}…`
-			: view.description;
+	const soon = releaseLine(view.releaseDate, view.year, view.releaseStatus);
+	const description = view.description;
 
 	return (
 		<div className="scout-detail">
 			<div className="scout-detail-hero">
-				<Cover
-					src={cover}
-					alt=""
-					title={view.title}
-					className="scout-detail-cover"
-				/>
+				{/* The count rides on the artwork rather than in the line of
+				    facts. It is the least urgent thing the dialog knows, and in
+				    the line it was a fifth clause that pushed the row onto two. */}
+				<div className="scout-detail-art">
+					<Cover
+						src={cover}
+						alt=""
+						title={view.title}
+						className="scout-detail-cover"
+					/>
+					{entry && <ReplayCount entry={entry} />}
+				</div>
 
 				<div className="scout-detail-head">
 					<h2>{view.title}</h2>
@@ -202,7 +269,12 @@ export default function ItemDetail({
 					{/* One quiet line rather than a stack of chips: the record
 					    itself is not what you came to this dialog to do. */}
 					<p className="scout-detail-meta">
-						<span>{MEDIA_KIND_LABELS[view.kind]}</span>
+						{/* The glyph the cards carry, so a dialog opened from
+						    one is recognisably about the same thing. */}
+						<span className="scout-detail-kind">
+							<Icon name={KIND_ICONS[view.kind]} size={13} />
+							{MEDIA_KIND_LABELS[view.kind]}
+						</span>
 						{view.year ? <span>{view.year}</span> : null}
 						{typeof view.sourceRating === "number" &&
 							view.sourceRating > 0 && (
@@ -210,23 +282,20 @@ export default function ItemDetail({
 									★ {formatRating(view.sourceRating)}/10
 								</span>
 							)}
-						{countdown && (
-							<span className="scout-detail-soon">{countdown}</span>
-						)}
-						{entry && (
-							<span className="scout-detail-owned">
-								<Icon name="check" size={13} /> In your library
+						{soon && <span className="scout-detail-soon">{soon}</span>}
+						{/* On the end of the same line rather than a line of
+						    their own. Two greys stacked under a title are not a
+						    hierarchy — they are one block of small text with a
+						    fold in it, and the eye reads neither. */}
+						{view.tags.length > 0 && (
+							<span className="scout-detail-genres">
+								{view.tags.slice(0, 3).join(", ")}
 							</span>
 						)}
+						{/* "In your library" used to sit here. A dialog offering
+						    to open the note, delete it and rate it has already
+						    said so twice; the badge was the third time. */}
 					</p>
-
-					{/* Genres as a second quiet line rather than a row of pills.
-					    Six chips under the title competed with the title. */}
-					{view.tags.length > 0 && (
-						<p className="scout-detail-genres">
-							{view.tags.slice(0, 5).join(" · ")}
-						</p>
-					)}
 
 					<div className="scout-detail-actions">
 						{!entry && shown && (
@@ -250,7 +319,16 @@ export default function ItemDetail({
 								<Icon name="file-text" size={15} /> Open note
 							</button>
 						)}
-						{view.url && (
+						{/* Among the things you can *do* to the item, which is
+						    what it is. Tucked onto the end of the dates row it
+						    read as a third date field, and it was the one
+						    control down there that rearranges the others. The
+						    count that used to travel with it is a fact, and has
+						    gone onto the poster. */}
+						{entry && <ReplayControl ctx={ctx} entry={entry} />}
+						{/* Nothing to open a menu for yet, so the one link a
+						    search result has stays a button. */}
+						{!entry && view.url && (
 							<a
 								className="scout-button"
 								href={view.url}
@@ -259,14 +337,6 @@ export default function ItemDetail({
 							>
 								<Icon name="external-link" size={15} /> Source
 							</a>
-						)}
-						{entry && (
-							<button
-								className="scout-danger"
-								onClick={() => void remove(ctx, entry, onClose)}
-							>
-								<Icon name="trash-2" size={15} /> Delete
-							</button>
 						)}
 						{/* Beside the other things you can do to the item, rather
 						    than hanging off the end of the rating row where it
@@ -287,6 +357,22 @@ export default function ItemDetail({
 								<Icon name="heart" size={16} />
 							</button>
 						)}
+						{/* The rest behind one glyph. Five buttons wrapped onto
+						    two rows and gave equal weight to opening the note and
+						    deleting it; these two are the ones you reach for
+						    rarely and never by accident. */}
+						{entry && (
+							<button
+								className="scout-more-actions"
+								aria-label="More actions"
+								title="More"
+								onClick={(event) =>
+									moreMenu(ctx, entry, view.url, onClose, event)
+								}
+							>
+								<Icon name="more-horizontal" size={16} />
+							</button>
+						)}
 					</div>
 				</div>
 			</div>
@@ -295,9 +381,13 @@ export default function ItemDetail({
 				// The toggle sits under the text rather than after the last
 				// word: inline, it landed wherever the sentence happened to end
 				// and the paragraph reflowed around it on every click.
-				<div className="scout-detail-description">
-					<p>{description}</p>
-					{long && (
+				<div
+					className={`scout-detail-description${
+						expanded ? " is-open" : ""
+					}`}
+				>
+					<p ref={synopsis}>{description}</p>
+					{(long || expanded) && (
 						<button
 							className="scout-link-button"
 							onClick={() => setExpanded(!expanded)}
@@ -314,6 +404,27 @@ export default function ItemDetail({
 				</p>
 			)}
 
+			<WhyThis reasons={reasons} />
+
+			{/* Both sit above the panel you edit: they are about the thing
+			    itself, and the panel ends in a text area nobody should have to
+			    scroll past to find out what is in a series. */}
+			{episodic && (
+				<EpisodeGuideLink
+					entry={entry}
+					item={shown}
+					onOpen={() => setPage("episodes")}
+				/>
+			)}
+			{source && (
+				<SeriesStrip
+					ctx={ctx}
+					source={source}
+					previous={shown}
+					onClose={onClose}
+				/>
+			)}
+
 			{entry ? (
 				<ManagePanel ctx={ctx} entry={entry} />
 			) : (
@@ -324,6 +435,81 @@ export default function ItemDetail({
 			)}
 		</div>
 	);
+}
+
+/**
+ * Why the row put this up, in full.
+ *
+ * A rail card has room for one reason of about twenty characters, so the model
+ * would work out four things it recognised and then say one of them — and the
+ * one it said was ellipsed. This is where the room is. Marks against it are
+ * shown too, and deliberately: a recommender that will only tell you what it
+ * likes about a suggestion is one you cannot check, and "it is a Musical and
+ * you have turned those down" is exactly the sentence that makes an otherwise
+ * baffling row make sense.
+ */
+function WhyThis({
+	reasons,
+}: {
+	reasons: readonly Reason[] | undefined;
+}): React.ReactElement | null {
+	if (!reasons || reasons.length === 0) return null;
+	const ranked = rankReasons(reasons, 6);
+	return (
+		<section className="scout-detail-why">
+			<h3 className="scout-section-title">
+				<Icon name="wand-sparkles" size={14} />
+				Why this is here
+			</h3>
+			<ul>
+				{ranked.map((one) => (
+					<li
+						key={`${one.kind}:${one.label}`}
+						className={one.against ? "is-against" : undefined}
+					>
+						<Icon name={reasonIcon(one.kind)} size={13} />
+						<span>{one.label}</span>
+						{one.against && (
+							<span className="scout-detail-why-mark">against</span>
+						)}
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
+
+/** The occasional things: the source page, and deleting the note. */
+function moreMenu(
+	ctx: ScoutContext,
+	entry: LibraryEntry,
+	url: string | undefined,
+	onClose: () => void,
+	event: React.MouseEvent,
+): void {
+	const menu = new Menu();
+	if (url) {
+		menu.addItem((i) =>
+			i
+				.setTitle("Open source page")
+				.setIcon("external-link")
+				.onClick(() => window.open(url, "_blank", "noopener")),
+		);
+	}
+	menu.addItem((i) =>
+		i
+			.setTitle("Open note in new tab")
+			.setIcon("plus-square")
+			.onClick(() => void ctx.mutator.open(entry, true)),
+	);
+	menu.addSeparator();
+	menu.addItem((i) =>
+		i
+			.setTitle("Delete note")
+			.setIcon("trash-2")
+			.onClick(() => void remove(ctx, entry, onClose)),
+	);
+	menu.showAtMouseEvent(event.nativeEvent);
 }
 
 /** Confirms before trashing, unless the user has turned the prompt off. */

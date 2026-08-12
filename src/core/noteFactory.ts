@@ -1,10 +1,16 @@
 import { App, Notice, TFile, normalizePath } from "obsidian";
+import { assignedPropertyType } from "./library/mutate";
+import { needsTagSafeNames, tagSafeList } from "./library/tags";
 import { NoteWriter, noticeForOutcome, type WriteOutcome } from "./noteWriter";
 import { isDetailable, type MediaProvider } from "./provider";
 import type { ProviderRegistry } from "./registry";
 import type { ScoutSettings } from "./settings/store";
 import { renderTemplate } from "./template/engine";
-import { toTemplateContext, type MediaItem } from "./types";
+import {
+	toTemplateContext,
+	type MediaItem,
+	type TemplateValue,
+} from "./types";
 import { defaultTemplateFor } from "../templates/defaults";
 
 /**
@@ -24,6 +30,38 @@ export class NoteFactory {
 		private readonly registry: ProviderRegistry,
 	) {
 		this.writer = new NoteWriter(app);
+	}
+
+	/**
+	 * Genre names, in whatever form the property they land in will accept.
+	 *
+	 * The template decides which property that is — the built-in ones write
+	 * `genres:`, an ordinary list, which keeps "Sci-Fi & Fantasy" as its own
+	 * name. A vault that has typed that property as Tags, or a template that
+	 * writes `tags:` instead, needs names Obsidian's tag grammar allows, or
+	 * every genre with a space or an ampersand in it arrives struck through.
+	 */
+	private withTagSafeGenres(
+		context: Record<string, TemplateValue>,
+	): Record<string, TemplateValue> {
+		const property = this.settings.library().fields.tags?.trim();
+		const asTags = ["tags", "genres", property]
+			.filter((name): name is string => Boolean(name))
+			.some((name) =>
+				needsTagSafeNames(name, (key) =>
+					assignedPropertyType(this.app, key),
+				),
+			);
+		if (!asTags) return context;
+
+		const safe = { ...context };
+		for (const key of ["tags", "genres"]) {
+			const value = safe[key];
+			if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+				safe[key] = tagSafeList(value as string[]);
+			}
+		}
+		return safe;
 	}
 
 	/**
@@ -50,7 +88,7 @@ export class NoteFactory {
 
 		const { content, missing } = renderTemplate(
 			template,
-			toTemplateContext(enriched),
+			this.withTagSafeGenres(toTemplateContext(enriched)),
 		);
 
 		if (missing.length > 0 && this.settings.core("warnOnMissingFields")) {

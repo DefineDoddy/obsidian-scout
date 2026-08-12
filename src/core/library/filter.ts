@@ -24,6 +24,8 @@ export interface LibraryQuery {
 	statuses: string[];
 	/** An entry must carry all of these. */
 	tags: string[];
+	/** An entry must belong to all of these collections, by name. */
+	collections: string[];
 	favoritesOnly: boolean;
 	/**
 	 * Expressed on the default scale, and compared proportionally — asking for
@@ -41,6 +43,7 @@ export function emptyQuery(config: LibraryConfig): LibraryQuery {
 		kinds: [],
 		statuses: [],
 		tags: [],
+		collections: [],
 		favoritesOnly: false,
 		minRating: 0,
 		sortBy: config.sortBy,
@@ -50,24 +53,44 @@ export function emptyQuery(config: LibraryConfig): LibraryQuery {
 
 const lower = (value: string) => value.toLowerCase();
 
-/** Matches title, people, tags, and status — the fields worth searching. */
-function matchesText(entry: LibraryEntry, needle: string): boolean {
-	if (!needle) return true;
-	const haystack = [
-		entry.title,
-		entry.basename,
-		entry.status ?? "",
-		...entry.tags,
-		...entry.people,
-	]
-		.join(" ")
-		.toLowerCase();
-	// Every word must appear somewhere, so "nolan 2010" narrows rather than widens.
-	return needle
-		.toLowerCase()
-		.split(/\s+/)
-		.filter(Boolean)
-		.every((word) => haystack.includes(word));
+/**
+ * Lowercased forms, worked out once per entry and kept for as long as the entry
+ * itself lives.
+ *
+ * The library re-filters on every keystroke, and doing this inside the loop
+ * meant lowercasing and joining every title, genre and name in the vault sixty
+ * times a second. A `WeakMap` because the key is the entry object: a re-parsed
+ * note is a new object with no cache and the old one is collected along with
+ * its strings, so nothing here can go stale or accumulate.
+ */
+interface EntryText {
+	haystack: string;
+	tags: string[];
+	collections: string[];
+	status: string;
+}
+
+const textCache = new WeakMap<LibraryEntry, EntryText>();
+
+function textOf(entry: LibraryEntry): EntryText {
+	const found = textCache.get(entry);
+	if (found) return found;
+	const built: EntryText = {
+		haystack: [
+			entry.title,
+			entry.basename,
+			entry.status ?? "",
+			...entry.tags,
+			...entry.people,
+		]
+			.join(" ")
+			.toLowerCase(),
+		tags: entry.tags.map(lower),
+		collections: entry.collections.map(lower),
+		status: entry.status ? lower(entry.status) : "",
+	};
+	textCache.set(entry, built);
+	return built;
 }
 
 export function filterEntries(
@@ -75,43 +98,98 @@ export function filterEntries(
 	query: LibraryQuery,
 	config: LibraryConfig,
 ): LibraryEntry[] {
-	const statuses = query.statuses.map(lower);
+	const kinds = query.kinds.length > 0 ? new Set(query.kinds) : null;
+	const statuses =
+		query.statuses.length > 0 ? new Set(query.statuses.map(lower)) : null;
 	const tags = query.tags.map(lower);
+	const collections = (query.collections ?? []).map(lower);
 	const minFraction =
 		config.ratingScale > 0 ? query.minRating / config.ratingScale : 0;
+	// Every word must appear somewhere, so "nolan 2010" narrows rather than widens.
+	const words = query.text.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-	return entries.filter((entry) => {
-		if (query.kinds.length > 0 && !query.kinds.includes(entry.kind)) {
-			return false;
-		}
-		if (statuses.length > 0) {
-			const status = entry.status ? lower(entry.status) : "";
-			if (!statuses.includes(status)) return false;
-		}
-		if (tags.length > 0) {
-			const own = entry.tags.map(lower);
-			if (!tags.every((tag) => own.includes(tag))) return false;
-		}
-		if (query.favoritesOnly && !entry.favorite) return false;
+	const out: LibraryEntry[] = [];
+	for (const entry of entries) {
+		if (kinds && !kinds.has(entry.kind)) continue;
+		if (query.favoritesOnly && !entry.favorite) continue;
 		if (query.minRating > 0) {
 			const fraction = ratingFraction(config, entry.kind, entry.rating);
 			// A hair of tolerance, so 4/5 is not excluded from "4+" by 1e-16.
-			if (fraction === undefined || fraction < minFraction - 1e-9) {
-				return false;
-			}
+			if (fraction === undefined || fraction < minFraction - 1e-9) continue;
 		}
-		return matchesText(entry, query.text.trim());
-	});
+		if (
+			!statuses &&
+			tags.length === 0 &&
+			collections.length === 0 &&
+			words.length === 0
+		) {
+			out.push(entry);
+			continue;
+		}
+		// Only now is the entry's text worth building, and only once.
+		const text = textOf(entry);
+		if (statuses && !statuses.has(text.status)) continue;
+		if (tags.length > 0 && !tags.every((tag) => text.tags.includes(tag))) {
+			continue;
+		}
+		if (
+			collections.length > 0 &&
+			!collections.every((name) => text.collections.includes(name))
+		) {
+			continue;
+		}
+		if (words.length > 0 && !words.every((w) => text.haystack.includes(w))) {
+			continue;
+		}
+		out.push(entry);
+	}
+	return out;
 }
 
 /* ------------------------------------------------------------------ sorting */
 
-/** Position of a status within its kind's vocabulary; unknown statuses last. */
-function statusRank(config: LibraryConfig, entry: LibraryEntry): number {
-	if (!entry.status) return 999;
-	const list = statusesFor(config, entry.kind).map(lower);
-	const index = list.indexOf(lower(entry.status));
-	return index === -1 ? 998 : index;
+/**
+ * Titles, compared. A bare `localeCompare` on purpose: V8 keeps a fast path for
+ * exactly this call, and every `Intl.Collator` this was tried against — plain,
+ * numeric, case-insensitive — sorted five thousand titles about twice as slowly.
+ */
+const compareText = (a: string, b: string) => a.localeCompare(b);
+
+/**
+ * Each kind's status vocabulary, lowercased, worked out once per sort.
+ *
+ * `statusesFor` splits a comma-separated setting every time it is asked, and it
+ * was being asked from inside a comparator — so an eight-hundred-item sort split
+ * the same string ten thousand times.
+ */
+function statusRanks(config: LibraryConfig): (entry: LibraryEntry) => number {
+	const byKind = new Map<MediaKind, Map<string, number>>();
+	return (entry) => {
+		if (!entry.status) return 999;
+		let ranks = byKind.get(entry.kind);
+		if (!ranks) {
+			ranks = new Map(
+				statusesFor(config, entry.kind).map((status, at) => [
+					lower(status),
+					at,
+				]),
+			);
+			byKind.set(entry.kind, ranks);
+		}
+		return ranks.get(lower(entry.status)) ?? 998;
+	};
+}
+
+/**
+ * The source's score as a fraction, or undefined when it has none.
+ *
+ * Zero is nobody having voted rather than a verdict — the same guard the cards
+ * make — so an unreleased film does not sort below everything in the library.
+ */
+function sourceFraction(entry: LibraryEntry): number | undefined {
+	const score = entry.sourceRating;
+	if (score === undefined || score <= 0) return undefined;
+	return Math.min(score / 10, 1);
 }
 
 function progressRatio(entry: LibraryEntry): number {
@@ -128,12 +206,31 @@ export function sortEntries(
 ): LibraryEntry[] {
 	const out = [...entries];
 	const byTitle = (a: LibraryEntry, b: LibraryEntry) =>
-		a.title.localeCompare(b.title);
-	// Proportional, so a book out of five is not beaten by every film out of
-	// ten. `missing` is the value unrated entries take, chosen by the caller so
-	// they sink to the bottom whichever direction the sort runs.
+		compareText(a.title, b.title);
+	/**
+	 * Proportional, so a book out of five is not beaten by every film out of
+	 * ten. `missing` is the value entries with no score at all take, chosen by
+	 * the caller so they sink to the bottom whichever direction the sort runs.
+	 *
+	 * Falling back to the source's score is what stops a backlog from ordering
+	 * itself alphabetically: most of a library is unrated, and "the highest
+	 * rated thing I have not seen" is the question this sort is usually being
+	 * asked. Source scores are always out of ten, whatever scale the notes use.
+	 */
 	const rank = (entry: LibraryEntry, missing: number) =>
-		ratingFraction(config, entry.kind, entry.rating) ?? missing;
+		ratingFraction(config, entry.kind, entry.rating) ??
+		sourceFraction(entry) ??
+		missing;
+	// Your own verdict outranks a borrowed one when the two land on the same
+	// number, so a film you gave 8 sits above a film the internet gave 8.
+	const mine = (entry: LibraryEntry) => (entry.rating !== undefined ? 1 : 0);
+
+	/**
+	 * Keys are worked out inside the comparator rather than cached against each
+	 * entry first: a `Map` keyed by object was measured at three times the cost
+	 * of simply doing the arithmetic again, because these keys are a subtraction
+	 * and a lookup in a Map is not.
+	 */
 
 	switch (sortBy) {
 		case "title":
@@ -149,10 +246,16 @@ export function sortEntries(
 			out.sort((a, b) => b.created - a.created);
 			break;
 		case "rating-desc":
-			out.sort((a, b) => rank(b, -1) - rank(a, -1) || byTitle(a, b));
+			out.sort(
+				(a, b) =>
+					rank(b, -1) - rank(a, -1) || mine(b) - mine(a) || byTitle(a, b),
+			);
 			break;
 		case "rating-asc":
-			out.sort((a, b) => rank(a, 2) - rank(b, 2) || byTitle(a, b));
+			out.sort(
+				(a, b) =>
+					rank(a, 2) - rank(b, 2) || mine(b) - mine(a) || byTitle(a, b),
+			);
 			break;
 		case "year-desc":
 			out.sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b));
@@ -164,11 +267,20 @@ export function sortEntries(
 						(b.year ?? Number.MAX_SAFE_INTEGER) || byTitle(a, b),
 			);
 			break;
-		case "status":
-			out.sort(
-				(a, b) => statusRank(config, a) - statusRank(config, b) || byTitle(a, b),
+		case "status": {
+			/**
+			 * The one key worth working out in advance: it costs a lowercase and
+			 * two map lookups, and a sort would otherwise ask for it a hundred
+			 * thousand times over a library of five. Decorated into a parallel
+			 * array rather than a `Map` keyed by entry — see above.
+			 */
+			const rankOf = statusRanks(config);
+			const ranked = out.map((entry) => ({ entry, key: rankOf(entry) }));
+			ranked.sort(
+				(a, b) => a.key - b.key || byTitle(a.entry, b.entry),
 			);
-			break;
+			return ranked.map((one) => one.entry);
+		}
 		case "progress":
 			out.sort((a, b) => progressRatio(b) - progressRatio(a) || byTitle(a, b));
 			break;
@@ -257,6 +369,10 @@ function groupKeysOf(
 		}
 		case "person":
 			return fromList(entry.people, "No one credited");
+		case "collection":
+			// The whole point of the shelf metaphor: every collection, side by
+			// side, with everything loose in one pile at the end.
+			return fromList(entry.collections, "In no collection");
 		case "favorite":
 			return [
 				entry.favorite
@@ -296,13 +412,17 @@ export function groupEntries(
 		// Follow the configured status order rather than discovery order, so
 		// shelves read "To watch → Watching → Watched" as they do in settings.
 		const order = new Map<string, number>();
-		const seen = new Set<string>();
+		// One pass per kind present rather than one per entry: the vocabulary is
+		// a property of the kind, and splitting it again for every note in the
+		// library was the same answer several thousand times.
+		const kinds = new Set<MediaKind>();
+		for (const entry of entries) kinds.add(entry.kind);
 		let next = 0;
-		for (const entry of entries) {
-			for (const status of statusesFor(config, entry.kind)) {
-				if (seen.has(lower(status))) continue;
-				seen.add(lower(status));
-				order.set(lower(status), next++);
+		for (const kind of kinds) {
+			for (const status of statusesFor(config, kind)) {
+				const key = lower(status);
+				if (order.has(key)) continue;
+				order.set(key, next++);
 			}
 		}
 		out.sort(
@@ -315,14 +435,15 @@ export function groupEntries(
 	} else if (
 		groupBy === "genre" ||
 		groupBy === "genre-main" ||
-		groupBy === "person"
+		groupBy === "person" ||
+		groupBy === "collection"
 	) {
 		// Discovery order means nothing here, and there can be a lot of these:
 		// biggest shelf first, alphabetical to break ties.
 		out.sort(
 			(a, b) =>
 				b.entries.length - a.entries.length ||
-				a.label.localeCompare(b.label),
+				compareText(a.label, b.label),
 		);
 	}
 
@@ -397,6 +518,6 @@ export function collectTags(entries: readonly LibraryEntry[]): string[] {
 		}
 	}
 	return [...counts.values()]
-		.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+		.sort((a, b) => b.count - a.count || compareText(a.label, b.label))
 		.map((t) => t.label);
 }

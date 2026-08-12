@@ -1,0 +1,205 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scout — suggestion rail, taste panel, why block</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  /* Stand-ins for the Obsidian variables the plugin never hard-codes. */
+  :root {
+    --background-primary: #1e1e1e;
+    --background-secondary: #262626;
+    --background-modifier-border: #363636;
+    --background-modifier-border-hover: #454545;
+    --background-modifier-hover: #2f2f2f;
+    --text-normal: #dcddde;
+    --text-muted: #999;
+    --text-faint: #6e6e6e;
+    --text-accent: #a882ff;
+    --text-error: #e05a5a;
+    --interactive-accent: #7c4dff;
+    --interactive-accent-hover: #8f66ff;
+    --text-on-accent: #fff;
+    --font-interface: system-ui, sans-serif;
+  }
+  body { margin: 0; background: var(--background-primary); color: var(--text-normal);
+         font-family: var(--font-interface); }
+  /* Stand-ins for Obsidian's own button styling, and for a theme that rounds it.
+     Their absence is exactly why the series heading looked right here and came
+     out in the app as a pill with its text against the edges: `button` is a type
+     selector, so `.theme-dark button` outranks one class of ours. Anything here
+     that styles a button has to beat this. */
+  button { padding: 6px 12px; border: 0; border-radius: 4px;
+           background: #333; color: var(--text-normal); box-shadow: 0 1px 0 rgba(0,0,0,.3);
+           font-family: inherit; font-size: 14px; cursor: pointer; }
+  .theme-dark button { background: #2f2f2f; border-radius: 18px; }
+  .scout-icon { display: inline-block; width: var(--icon-size, 16px);
+                height: var(--icon-size, 16px); background: currentColor;
+                border-radius: 2px; opacity: .8; flex: 0 0 auto; }
+  .harness-modal { max-width: 620px; margin: 24px auto; padding: 18px;
+                   background: var(--background-primary);
+                   border: 1px solid var(--background-modifier-border);
+                   border-radius: 10px; }
+</style>
+</head>
+<body class="theme-dark">
+<div class="scout-home-container">
+  <div class="scout-home">
+    <section class="scout-home-section">
+      <div class="scout-home-section-head">
+        <h3><span class="scout-icon" style="--icon-size:15px"></span> You might like</h3>
+        <span class="scout-home-note">Learning from your library and 32 verdicts</span>
+        <button class="scout-home-more"><span class="scout-icon" style="--icon-size:13px"></span>Show me others</button>
+      </div>
+      <div class="scout-entries scout-entries-grid scout-home-rail" id="rail"></div>
+    </section>
+
+    <section class="scout-home-section scout-taste-section">
+      <div class="scout-home-section-head">
+        <h3><span class="scout-icon" style="--icon-size:14px"></span> What Scout has learned</h3>
+        <span class="scout-home-note">136 titles you have an opinion on · 1561 things it knows about them · 32 verdicts</span>
+        <button class="scout-home-more"><span class="scout-icon" style="--icon-size:13px"></span>Whole library</button>
+      </div>
+      <div class="scout-taste" id="taste"></div>
+    </section>
+  </div>
+</div>
+
+<div class="harness-modal">
+  <section class="scout-detail-why">
+    <h3 class="scout-section-title"><span class="scout-icon" style="--icon-size:14px"></span> Why this is here</h3>
+    <ul id="why"></ul>
+  </section>
+
+  <section class="scout-series">
+    <button class="scout-series-toggle scout-section-title" aria-expanded="false">
+      <span class="scout-icon" style="--icon-size:14px"></span>
+      The Lord of the Rings Collection
+      <span class="scout-count">3 of 6</span>
+      <span class="scout-series-caret"><span class="scout-icon" style="--icon-size:15px"></span></span>
+    </button>
+    <div class="scout-entries scout-entries-grid scout-series-strip" hidden id="series"></div>
+  </section>
+
+  <div class="scout-manage-row">
+    <span class="scout-manage-label">Collections</span>
+    <div class="scout-manage-control scout-collection-picks">
+      <button class="scout-collection-pick is-on"><span class="scout-icon" style="--icon-size:13px"></span>Comfort rewatches</button>
+      <button class="scout-collection-pick is-on"><span class="scout-icon" style="--icon-size:13px"></span>Best of 2024</button>
+      <button class="scout-collection-add"><span class="scout-icon" style="--icon-size:13px"></span>Add…</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Seven cards, carrying the range of reasons the row actually produces —
+// including the longest label the model can emit, to check it truncates rather
+// than pushing the grid wide.
+const CARDS = [
+  { title: "Arrival", meta: "2016 · Movie", why: "Denis Villeneuve", strong: true },
+  { title: "Everything Everywhere All at Once", meta: "2022 · Movie", why: "3 of yours agree", strong: true },
+  { title: "Alien: Romulus", meta: "2024 · Movie", why: "More of Alien", strong: true },
+  { title: "Nope", meta: "2022 · Movie", why: "Insidious: The Red Door" },
+  { title: "Perfect Blue", meta: "1997 · Anime", why: "Satoshi Kon", strong: true },
+  { title: "Paprika", meta: "2006 · Anime", why: "Worth a look" },
+  { title: "The Zone of Interest", meta: "2023 · Movie", why: "Branching out" },
+];
+document.getElementById("rail").innerHTML = CARDS.map((c) => `
+  <div class="scout-entry scout-suggestion" role="button" tabindex="0">
+    <div class="scout-entry-art">
+      <div class="scout-cover scout-cover-empty">${c.title.slice(0,2).toUpperCase()}</div>
+      <span class="scout-home-badge"><span class="scout-icon" style="--icon-size:10px"></span>7.8</span>
+      <button class="scout-suggest-more"><span class="scout-icon" style="--icon-size:12px"></span></button>
+      <div class="scout-suggest-actions">
+        <button class="scout-suggest-vote"><span class="scout-icon" style="--icon-size:13px"></span></button>
+        <button class="scout-suggest-add"><span class="scout-icon" style="--icon-size:14px"></span></button>
+        <button class="scout-suggest-vote"><span class="scout-icon" style="--icon-size:13px"></span></button>
+      </div>
+    </div>
+    <div class="scout-entry-info">
+      <h4>${c.title}</h4>
+      <div class="scout-entry-meta">${c.meta}</div>
+      <div class="scout-entry-foot">${
+        c.why
+          ? `<span class="scout-why${c.strong ? " is-strong" : ""}" title="${c.why}">
+               <span class="scout-icon" style="--icon-size:10px"></span>
+               <span class="scout-why-text">${c.why}</span>
+             </span>`
+          : ""
+      }</div>
+    </div>
+  </div>`).join("");
+
+const COLUMNS = [
+  { title: "What you go for", blurb: "Rated above your own average, more than once",
+    against: false, rows: [
+      ["Science Fiction", 24, 1], ["time loop", 7, 0.72], ["dystopia", 11, 0.6],
+      ["Psychological Thriller", 9, 0.44], ["found family", 4, 0.3], ["heist", 3, 0.18] ] },
+  { title: "Who you follow", blurb: "Names and studios you keep coming back to",
+    against: false, rows: [
+      ["Denis Villeneuve", 5, 0.9], ["Syncopy", 6, 0.71], ["Robert Pattinson", 3, 0.5],
+      ["A24", 8, 0.36], ["Satoshi Kon", 2, 0.2] ] },
+  { title: "Steering away from", blurb: "Held against a suggestion that carries it",
+    against: true, rows: [
+      ["Western", 9, 0.8], ["Documentary", 8, 0.55], ["Musical", 4, 0.3], ["biography", 5, 0.12] ] },
+];
+document.getElementById("taste").innerHTML = COLUMNS.map((col) => `
+  <div class="scout-taste-col${col.against ? " is-against" : ""}">
+    <h4><span class="scout-icon" style="--icon-size:13px"></span>${col.title}</h4>
+    <p class="scout-taste-blurb">${col.blurb}</p>
+    <ul class="scout-taste-rows">${col.rows.map(([label, count, share]) => `
+      <li>
+        <span class="scout-taste-fill" style="width:${Math.max(6, Math.round(share * 100))}%"></span>
+        <span class="scout-taste-label">${label}</span>
+        <span class="scout-taste-count">${count}</span>
+      </li>`).join("")}
+    </ul>
+  </div>`).join("");
+
+const WHY = [
+  ["More of the Alien series — you have three of five", false],
+  ["Because you liked Insidious: The Red Door", false],
+  ["Denis Villeneuve", false],
+  ["time loop", false],
+  ["Well liked at the source", false],
+  ["Musical", true],
+];
+document.getElementById("why").innerHTML = WHY.map(([label, against]) => `
+  <li${against ? ' class="is-against"' : ""}>
+    <span class="scout-icon" style="--icon-size:13px"></span>
+    <span>${label}</span>
+    ${against ? '<span class="scout-detail-why-mark">against</span>' : ""}
+  </li>`).join("");
+
+// The series shelf: four films, the third of them the one the dialog is about.
+// Nothing is added to it — the others recede and it does not.
+const SERIES = [
+  { title: "Candyman", year: 1992, owned: true },
+  { title: "Candyman: Farewell to the Flesh", year: 1995 },
+  { title: "Candyman: Day of the Dead", year: 1999 },
+  { title: "Candyman", year: 2021, here: true },
+];
+document.getElementById("series").innerHTML = SERIES.map((c) => `
+  <div class="scout-entry${c.here ? " is-here" : ""}"${c.here ? "" : ' role="button" tabindex="0"'}
+       title="${c.title}${c.here ? " — the one you are looking at" : ""}">
+    <div class="scout-entry-art">
+      <div class="scout-cover scout-cover-empty">${c.title.slice(0,2).toUpperCase()}</div>
+      ${c.owned ? '<span class="scout-series-owned"><span class="scout-icon" style="--icon-size:11px"></span></span>' : ""}
+    </div>
+    <div class="scout-entry-info">
+      <h4>${c.title}</h4>
+      <p class="scout-entry-meta"><span class="scout-icon" style="--icon-size:11px"></span>${c.year}</p>
+      <div class="scout-entry-foot"></div>
+    </div>
+  </div>`).join("");
+
+document.querySelector(".scout-series-toggle").addEventListener("click", (e) => {
+  const section = e.currentTarget.closest(".scout-series");
+  const open = section.classList.toggle("is-open");
+  e.currentTarget.setAttribute("aria-expanded", String(open));
+  section.querySelector(".scout-series-strip").hidden = !open;
+});
+</script>
+</body>
+</html>

@@ -31,6 +31,30 @@ export interface FieldMap {
 	progress: string;
 	started: string;
 	finished: string;
+	/** Dates of earlier times through, so a re-watch keeps the first one. */
+	history: string;
+	/** How far into a series you are, as `S02E05`. */
+	episode: string;
+	/** Your rating and note for individual episodes, keyed by `S02E05`. */
+	episodeLog: string;
+	/**
+	 * Episodes seen out of order, as a list of `S02E05`.
+	 *
+	 * Separate from the marker rather than replacing it: a series watched in
+	 * order is one property saying "up to here", which is both shorter and
+	 * truer than sixty lines saying the same thing.
+	 */
+	watched: string;
+	/**
+	 * Which collections the note belongs to, by name.
+	 *
+	 * In the note rather than in plugin data, like everything else Scout knows
+	 * about an item: a collection is a fact about the thing, and a fact about
+	 * the thing belongs where the thing is. It survives a reinstall, it syncs
+	 * with the vault, Dataview can query it, and you can put a note into a
+	 * collection by typing.
+	 */
+	collections: string;
 }
 
 export type FieldKey = keyof FieldMap;
@@ -53,6 +77,11 @@ export const DEFAULT_FIELD_MAP: FieldMap = {
 	progress: "progress",
 	started: "started",
 	finished: "finished",
+	history: "history",
+	episode: "current_episode",
+	episodeLog: "episode_log",
+	watched: "watched_episodes",
+	collections: "collections",
 };
 
 /**
@@ -106,6 +135,19 @@ export const FIELD_FALLBACKS: Record<FieldKey, readonly string[]> = {
 	progress: ["progress", "episodes_watched", "pages_read", "current"],
 	started: ["started", "start_date", "started_on"],
 	finished: ["finished", "completed", "finish_date", "finished_on"],
+	history: [
+		"history",
+		"rewatches",
+		"rereads",
+		"replays",
+		"watch_history",
+		"read_history",
+		"completed_dates",
+	],
+	episode: ["current_episode", "episode", "last_episode", "up_to"],
+	episodeLog: ["episode_log", "episode_ratings", "episode_notes"],
+	watched: ["watched_episodes", "seen_episodes", "episodes_seen"],
+	collections: ["collections", "collection", "shelves", "lists"],
 };
 
 /** Labels for the field-mapping settings, and whether Scout writes the key. */
@@ -146,8 +188,8 @@ export const FIELD_INFO: Record<
 	rating: { name: "Your rating", desc: "Written when you rate.", writes: true },
 	sourceRating: {
 		name: "Source rating",
-		desc: "The source's own score, out of ten. Shown on cards you have not rated yourself.",
-		writes: false,
+		desc: "The source's own score, out of ten. Shown on cards you have not rated yourself, and kept current by the refresh below.",
+		writes: true,
 	},
 	status: { name: "Status", desc: "Written when you change status.", writes: true },
 	favorite: { name: "Favourite", desc: "Written as true or false.", writes: true },
@@ -158,6 +200,31 @@ export const FIELD_INFO: Record<
 	},
 	started: { name: "Started on", desc: "Date you began.", writes: true },
 	finished: { name: "Finished on", desc: "Date you finished.", writes: true },
+	history: {
+		name: "Previous times",
+		desc: "Dates you finished it on earlier times through. Written when you start it again, so the first date survives a re-watch.",
+		writes: true,
+	},
+	episode: {
+		name: "Current episode",
+		desc: "How far into a series you are, written as S02E05.",
+		writes: true,
+	},
+	episodeLog: {
+		name: "Episode notes",
+		desc: "Your rating and note for individual episodes, keyed by S02E05.",
+		writes: true,
+	},
+	watched: {
+		name: "Watched episodes",
+		desc: "Episodes seen out of order, as a list of S02E05. A series watched in order needs only the current episode above.",
+		writes: true,
+	},
+	collections: {
+		name: "Collections",
+		desc: "Which collections the note belongs to. Written when you add it to one, and read by the collection filters.",
+		writes: true,
+	},
 };
 
 /* ------------------------------------------------------------------- kinds */
@@ -274,6 +341,7 @@ export type LibraryGroupBy =
 	| "genre"
 	| "genre-main"
 	| "person"
+	| "collection"
 	| "favorite";
 
 export type LibrarySort =
@@ -287,6 +355,47 @@ export type LibrarySort =
 	| "year-asc"
 	| "status"
 	| "progress";
+
+/**
+ * What each of them is called on screen.
+ *
+ * Beside the unions rather than in the view that first needed them: two places
+ * now offer these lists — the toolbar and the view editor — and a label map
+ * kept in one of them is a label map the other has to import from a component.
+ * Typed as a total record, so adding a sort without naming it will not compile.
+ */
+export const SORT_LABELS: Record<LibrarySort, string> = {
+	recent: "Recently updated",
+	added: "Recently added",
+	title: "Title (A–Z)",
+	"title-desc": "Title (Z–A)",
+	"rating-desc": "Highest rated",
+	"rating-asc": "Lowest rated",
+	"year-desc": "Newest first",
+	"year-asc": "Oldest first",
+	status: "Status",
+	progress: "Furthest along",
+};
+
+export const GROUP_LABELS: Record<LibraryGroupBy, string> = {
+	none: "No grouping",
+	kind: "By type",
+	status: "By status",
+	genre: "By genre",
+	"genre-main": "By main genre",
+	person: "By person",
+	collection: "By collection",
+	rating: "By rating",
+	favorite: "By favourite",
+	decade: "By decade",
+	year: "By year",
+};
+
+export const LAYOUT_LABELS: Record<LibraryLayout, string> = {
+	grid: "Grid",
+	list: "List",
+	table: "Table",
+};
 
 export type RatingIcon = "star" | "heart" | "circle" | "number";
 
@@ -309,6 +418,32 @@ export interface LibraryConfig {
 	droppedStatuses: string;
 	/** Stamp the start/finish dates when the status changes. */
 	autoTimestamps: boolean;
+
+	/**
+	 * Ask sources for fresh metadata in the background.
+	 *
+	 * How often any one note is worth asking about is decided per note rather
+	 * than by a setting — see `refreshIntervalDays` — so this is only the switch
+	 * and the ceiling on a single run.
+	 */
+	autoRefresh: boolean;
+	/** Most notes to refresh in one run. One request each. */
+	refreshBudget: number;
+
+	/**
+	 * Whether Scout may read up on your library to sharpen its suggestions.
+	 *
+	 * A note records a genre list and a director because that is what a person
+	 * wants to read back. It is nowhere near enough to recommend on — "Drama,
+	 * Thriller" is shared by a third of everything ever made. With this on, the
+	 * same sources the plugin already uses are asked, slowly and in the
+	 * background, what each of your titles is actually *about*: its keywords,
+	 * its cast, its crew. The answers live in Scout's own data file and are
+	 * never written into a note.
+	 */
+	enrichSuggestions: boolean;
+	/** Most titles to read up on in one run. One request each. */
+	enrichBudget: number;
 
 	/** Top of the rating range: 5, 10, or 100. */
 	ratingScale: number;
@@ -367,6 +502,11 @@ export function defaultLibraryConfig(): LibraryConfig {
 		pausedStatuses: DEFAULT_PAUSED,
 		droppedStatuses: DEFAULT_DROPPED,
 		autoTimestamps: true,
+
+		autoRefresh: true,
+		refreshBudget: 20,
+		enrichSuggestions: true,
+		enrichBudget: 15,
 
 		ratingScale: 5,
 		ratingScales: {},
@@ -446,6 +586,23 @@ export function statusesFor(
 ): string[] {
 	const own = splitList(config.statuses[kind]);
 	return own.length > 0 ? own : splitList(DEFAULT_STATUSES[kind]);
+}
+
+/**
+ * The first status of a kind that means a given thing.
+ *
+ * For the places that have to *set* a status rather than read one — starting
+ * something again, most of all — where the word to write is whichever of the
+ * user's own the config sorts into that tone.
+ */
+export function statusWithTone(
+	config: LibraryConfig,
+	kind: MediaKind,
+	tone: StatusTone,
+): string | undefined {
+	return statusesFor(config, kind).find(
+		(status) => statusTone(config, status) === tone,
+	);
 }
 
 /** Every status across every kind, in a stable order, for the global filter. */

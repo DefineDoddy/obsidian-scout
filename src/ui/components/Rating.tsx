@@ -8,16 +8,18 @@ import type { RatingIcon } from "../../core/library/config";
  * stars with halves, a score out of ten, and a plain number — the three ways
  * people actually rate things.
  *
- * However large the scale is, there are always five icons: ten stars overflow
- * a grid card, and a row of a hundred is absurd. The value is mapped onto the
- * five instead, so 8/10 fills four of them.
+ * How many icons there are is the caller's call, because it depends entirely
+ * on the room: five in a grid card, where ten would overflow it, and one per
+ * point in the dialog, where a score out of ten reads without arithmetic. A
+ * hundred-point scale is five icons everywhere — a row of a hundred is absurd.
  *
- * Five icons say nothing about how precisely you can aim at them, which is a
- * separate question: each icon is divided into as many hit zones as the step
- * allows, up to four, so a scale of ten takes half points off a row of five
- * stars. Where even that cannot reach every allowed value — a hundred-point
- * scale being the obvious one — the readout beside the row is an editable
- * field, and typing 87 is exact in a way no pointer will ever be.
+ * The icon count says nothing about how precisely you can aim at them, which
+ * is a separate question: each icon is divided into as many hit zones as the
+ * step allows, up to four, so a scale of ten takes half points off a row of
+ * five stars. Where that cannot reach every allowed value — a hundred-point
+ * scale being the obvious one — or where the caller asks for it outright, the
+ * readout beside the row is an editable field, and typing 87 is exact in a way
+ * no pointer will ever be.
  */
 
 const PATHS: Record<Exclude<RatingIcon, "number">, string> = {
@@ -60,6 +62,22 @@ function snap(value: number, step: number): number {
 	return Math.round(Math.round(value / step) * step * 1e6) / 1e6;
 }
 
+/**
+ * How finely a typed score may be aimed, whatever the icons can reach.
+ *
+ * The step is a property of the row of stars — it says where a click may land,
+ * because a click lands somewhere whether you meant it to or not. Typing has no
+ * such problem: someone who writes 7.4 has said 7.4 on purpose, and rounding it
+ * to the nearest half because the stars only do halves is the app overruling a
+ * number the person typed with their hands.
+ */
+const TYPED_STEP = 0.1;
+
+/** The finer of the two: a tenth, or the scale's own step when it is finer. */
+function typedStep(step: number): number {
+	return step > 0 ? Math.min(step, TYPED_STEP) : TYPED_STEP;
+}
+
 export interface RatingProps {
 	value: number | undefined;
 	scale: number;
@@ -74,6 +92,16 @@ export interface RatingProps {
 	slots?: number;
 	/** Icon size in pixels. */
 	size?: number;
+	/**
+	 * Always offer the typed field, even where the icons can reach every value
+	 * the step allows.
+	 *
+	 * Ten stars in half steps *can* land on 7.5 by pointing — but landing on it
+	 * means hitting a nine-pixel target, and where there is room for the field
+	 * there is no reason to make anyone. Off by default, because a card has
+	 * nowhere to put it.
+	 */
+	exact?: boolean;
 	onChange?: (value: number | null) => void;
 }
 
@@ -111,6 +139,75 @@ function Glyph({
 }
 
 /**
+ * A score you type.
+ *
+ * Held locally while it is being typed, and only written when you leave the box
+ * or press Enter. Writing on every keystroke looked like the field fighting
+ * back, and it was: "7." is not a number, so it was read as 7, rounded to the
+ * step, written to the note, and handed back as "7" — the dot you had just
+ * typed gone before the tenths could be. The same went for clearing it, where
+ * an empty box means "not finished typing" far more often than it means "no
+ * rating".
+ *
+ * Escape puts back what the note says, which is the only way out of a half-
+ * typed number that does not commit it.
+ */
+function ScoreField({
+	value,
+	scale,
+	step,
+	onCommit,
+}: {
+	value: number | undefined;
+	scale: number;
+	step: number;
+	onCommit: (value: number | null) => void;
+}): React.ReactElement {
+	const shown = value === undefined ? "" : String(value);
+	const [draft, setDraft] = useState<string | null>(null);
+	const fine = typedStep(step);
+
+	const commit = () => {
+		const text = draft;
+		setDraft(null);
+		if (text === null) return;
+		if (!text.trim()) {
+			if (value !== undefined) onCommit(null);
+			return;
+		}
+		const parsed = Number(text);
+		if (!Number.isFinite(parsed)) return;
+		const next = snap(Math.min(Math.max(parsed, 0), scale), fine);
+		if (next !== value) onCommit(next);
+	};
+
+	return (
+		<input
+			type="number"
+			min={0}
+			max={scale}
+			step={fine}
+			value={draft ?? shown}
+			placeholder="–"
+			aria-label={`Rating out of ${scale}`}
+			onChange={(e) => setDraft(e.target.value)}
+			onBlur={commit}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					commit();
+					return;
+				}
+				if (e.key === "Escape") {
+					e.preventDefault();
+					setDraft(null);
+				}
+			}}
+		/>
+	);
+}
+
+/**
  * The accessible name of a hit target.
  *
  * Deliberately text rather than an `aria-label`: Obsidian turns any element
@@ -139,34 +236,26 @@ export default function Rating({
 	readOnly = false,
 	slots = SLOTS,
 	size = 18,
+	exact = false,
 	onChange,
 }: RatingProps): React.ReactElement {
 	const [hover, setHover] = useState<number | null>(null);
 
-	/** Typed rather than pointed at. Clamped and snapped to the scale's step. */
-	const type = (text: string) => {
-		if (!text.trim()) {
-			onChange?.(null);
-			return;
-		}
-		const parsed = Number(text);
-		if (!Number.isFinite(parsed)) return;
-		onChange?.(snap(Math.min(Math.max(parsed, 0), scale), step));
-	};
-
 	if (icon === "number") {
 		return (
 			<span className="scout-rating scout-rating-numeric">
-				<input
-					type="number"
-					min={0}
-					max={scale}
-					step={step}
-					value={value ?? ""}
-					disabled={readOnly}
-					aria-label={`Rating out of ${scale}`}
-					onChange={(e) => type(e.target.value)}
-				/>
+				{readOnly ? (
+					<span className="scout-rating-value">
+						{value === undefined ? "–" : formatRating(value)}
+					</span>
+				) : (
+					<ScoreField
+						value={value}
+						scale={scale}
+						step={step}
+						onCommit={(next) => onChange?.(next)}
+					/>
+				)}
 				<span className="scout-rating-scale">/ {scale}</span>
 			</span>
 		);
@@ -184,8 +273,12 @@ export default function Rating({
 	 * Whether the row alone can reach every value the step allows. Out of five
 	 * in halves it can; out of a hundred nothing pointed at five icons can, so
 	 * the readout becomes a field you can type an exact score into.
+	 *
+	 * The comparison is against the zone rather than the icon, which is what
+	 * lets a row of five cover a scale of ten without a field beside it — four
+	 * zones an icon is a half point either way.
 	 */
-	const typable = !readOnly && (zoneValue > step + 1e-9 || scale > slots);
+	const typable = !readOnly && (exact || zoneValue > step + 1e-9);
 
 	/** The rating a given icon position stands for. */
 	const valueAt = (slot: number) => snap(slot * perSlot, step);
@@ -214,8 +307,32 @@ export default function Rating({
 					Math.max(shown / perSlot - (slot - 1), 0),
 					1,
 				);
+				/**
+				 * The score under the pointer, over the icon it would set.
+				 *
+				 * Half a star of a ten-point scale is a four-pixel target that
+				 * looks identical to the four pixels either side of it, so
+				 * without this the only way to find out what you were about to
+				 * commit to was to commit to it. Drawn rather than left to the
+				 * platform's own tooltip, which arrives a second late — long
+				 * after the pointer has moved on to a different value.
+				 */
+				const tip =
+					hover !== null &&
+					hover > (slot - 1) * perSlot + 1e-9 &&
+					hover <= slot * perSlot + 1e-9
+						? hover
+						: null;
 				return (
 					<span key={slot} className="scout-rating-slot">
+						{tip !== null && (
+							<span className="scout-rating-tip" role="presentation">
+								{formatRating(tip)}
+								<span className="scout-rating-scale">
+									/{scale}
+								</span>
+							</span>
+						)}
 						<Glyph path={path} fraction={fraction} size={size} />
 						{!readOnly &&
 							// One button per hit zone: two of them out of five,
@@ -250,15 +367,11 @@ export default function Rating({
 				   beside it: it is already showing the number, and on a scale
 				   of a hundred typing is the only way to say 87. */
 				<span className="scout-rating-entry">
-					<input
-						type="number"
-						min={0}
-						max={scale}
+					<ScoreField
+						value={value}
+						scale={scale}
 						step={step}
-						value={value ?? ""}
-						placeholder="–"
-						aria-label={`Rating out of ${scale}`}
-						onChange={(e) => type(e.target.value)}
+						onCommit={(next) => onChange?.(next)}
 					/>
 					<span className="scout-rating-scale">/{scale}</span>
 				</span>

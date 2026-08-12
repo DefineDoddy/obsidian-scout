@@ -20,6 +20,79 @@ export function confirmModal(
 	});
 }
 
+/**
+ * One line of text, in the same chrome.
+ *
+ * For naming things — a view, a collection — where sending the user to a
+ * settings dialog to type six characters would be the longer way round.
+ * Resolves null when dismissed, which is not the same as an empty answer.
+ */
+export function promptModal(
+	app: App,
+	options: {
+		title: string;
+		placeholder?: string;
+		value?: string;
+		confirmText: string;
+	},
+): Promise<string | null> {
+	return new Promise((resolve) => {
+		new PromptModal(app, options, resolve).open();
+	});
+}
+
+class PromptModal extends Modal {
+	private answered = false;
+
+	constructor(
+		app: App,
+		private readonly options: {
+			title: string;
+			placeholder?: string;
+			value?: string;
+			confirmText: string;
+		},
+		private readonly respond: (value: string | null) => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText(this.options.title);
+		const input = this.contentEl.createEl("input", {
+			type: "text",
+			cls: "scout-prompt-input",
+		});
+		input.placeholder = this.options.placeholder ?? "";
+		input.value = this.options.value ?? "";
+
+		const row = this.contentEl.createDiv({ cls: "modal-button-container" });
+		const cancel = row.createEl("button", { text: "Cancel" });
+		cancel.onclick = () => this.answer(null);
+
+		const confirm = row.createEl("button", { text: this.options.confirmText });
+		confirm.addClass("mod-cta");
+		confirm.onclick = () => this.answer(input.value.trim() || null);
+
+		input.addEventListener("keydown", (event) => {
+			if (event.key === "Enter") this.answer(input.value.trim() || null);
+		});
+		input.focus();
+		input.select();
+	}
+
+	private answer(value: string | null): void {
+		this.answered = true;
+		this.respond(value);
+		this.close();
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+		if (!this.answered) this.respond(null);
+	}
+}
+
 class ConfirmModal extends Modal {
 	private answered = false;
 

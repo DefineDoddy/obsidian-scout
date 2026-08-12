@@ -1,9 +1,27 @@
 import type { Plugin } from "obsidian";
 import {
+	normalizeCollections,
+	type CollectionDef,
+} from "../library/collections";
+import {
 	normalizeLibraryConfig,
 	type LibraryConfig,
 } from "../library/config";
+import {
+	normalizeFeedback,
+	normalizeShown,
+	pruneShown,
+	type FeedbackLog,
+	type FeedbackRecord,
+	type ShownLog,
+} from "../library/feedback";
+import {
+	normalizeEnrichment,
+	type EnrichmentCache,
+	type EnrichmentRecord,
+} from "../library/enrich";
 import type { CollisionPolicy } from "../noteWriter";
+import { normalizeViews, type SavedView } from "../library/views";
 import type { MediaKind } from "../types";
 import type { SettingsScope } from "./types";
 
@@ -47,6 +65,68 @@ export interface ScoutData {
 	kinds: Partial<Record<MediaKind, KindConfig>>;
 	library: LibraryConfig;
 	providers: Record<string, Record<string, unknown>>;
+	/**
+	 * When each note was last asked about, `YYYY-MM-DD` by note path.
+	 *
+	 * The one thing Scout keeps outside the notes, and deliberately: most
+	 * checks find nothing changed, and stamping a property on every note every
+	 * few days to record that would put the whole library at the top of
+	 * "recently updated" for no reason anybody asked for. Losing this file
+	 * costs one extra round of checks and nothing else.
+	 */
+	checked: Record<string, string>;
+	/**
+	 * Suggestions you liked or passed on, keyed `providerId:id`.
+	 *
+	 * Outside the vault for the same reason as `checked`: a thumbs-down is a
+	 * fact about something you decided *not* to keep, and writing a note for
+	 * each one would fill the library with the opposite of a library.
+	 */
+	feedback: FeedbackLog;
+	/**
+	 * When each suggestion was last put in front of you, `providerId:id` to
+	 * epoch milliseconds.
+	 *
+	 * The row used to hold this in memory only, so closing Obsidian and opening
+	 * it again brought back the same seven titles — which reads as "this is not
+	 * learning" more loudly than any ranking error. Losing this file costs one
+	 * repeated row and nothing else.
+	 */
+	shown?: ShownLog;
+	/**
+	 * What the sources have said about your library beyond what its notes hold.
+	 *
+	 * Scout's working notes, and emphatically not yours: keywords, cast and
+	 * crew, kept here precisely so they never end up in your frontmatter.
+	 * Losing this file costs a few days of quiet background reading and nothing
+	 * else.
+	 */
+	enrichment?: EnrichmentCache;
+	/**
+	 * Saved library views, in the order their tabs appear.
+	 *
+	 * Configuration rather than content: a view owns no items, it only says how
+	 * to look at the ones the vault already holds. Losing this file loses the
+	 * arrangement and nothing else.
+	 */
+	views: SavedView[];
+	/**
+	 * Collection definitions — the name, the glyph, and the rule.
+	 *
+	 * Membership is *not* here: that lives in each note's frontmatter, because a
+	 * note being in a collection is a fact about the note. What is here is the
+	 * standing order that puts it there.
+	 */
+	collections: CollectionDef[];
+	/**
+	 * Whether the one-time type views have been offered.
+	 *
+	 * The library used to carry a row of "All / Films / TV / Books" pills, which
+	 * were a second, weaker views bar: same job, no naming, no conditions, no
+	 * deleting. They are seeded as ordinary views instead — and this flag is what
+	 * stops them coming back after you throw them away.
+	 */
+	seededViews?: boolean;
 }
 
 const DEFAULT_CORE: CoreConfig = {
@@ -64,6 +144,12 @@ function emptyData(): ScoutData {
 		kinds: {},
 		library: normalizeLibraryConfig(undefined),
 		providers: {},
+		checked: {},
+		feedback: {},
+		shown: {},
+		enrichment: {},
+		views: [],
+		collections: [],
 	};
 }
 
@@ -93,12 +179,20 @@ export function migrate(raw: Record<string, unknown> | null): ScoutData {
 	if (!raw || typeof raw !== "object") return emptyData();
 	if (typeof raw.schemaVersion === "number" && raw.schemaVersion >= 2) {
 		const data = raw as unknown as ScoutData;
+		const library = normalizeLibraryConfig(data.library);
 		return {
 			schemaVersion: SCHEMA_VERSION,
 			core: { ...DEFAULT_CORE, ...data.core },
 			kinds: data.kinds ?? {},
-			library: normalizeLibraryConfig(data.library),
+			library,
 			providers: data.providers ?? {},
+			checked: data.checked ?? {},
+			feedback: normalizeFeedback(data.feedback),
+			shown: normalizeShown(data.shown),
+			enrichment: normalizeEnrichment(data.enrichment),
+			views: normalizeViews(data.views, library),
+			collections: normalizeCollections(data.collections),
+			...(data.seededViews ? { seededViews: true } : {}),
 		};
 	}
 
@@ -235,6 +329,212 @@ export class ScoutSettings {
 		value: KindConfig[K],
 	): void {
 		this.data.kinds[kind] = { ...this.kind(kind), [key]: value };
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/* -------------------------------------------------- the refresh log */
+
+	checkLog(): Readonly<Record<string, string>> {
+		return this.data.checked;
+	}
+
+	/** Records that a note was asked about today, whatever the answer was. */
+	markChecked(path: string, day: string): void {
+		this.data.checked[path] = day;
+		this.scheduleSave();
+	}
+
+	/** Replaces the log wholesale, for pruning after a run. No notification. */
+	setCheckLog(log: Record<string, string>): void {
+		this.data.checked = log;
+		this.scheduleSave();
+	}
+
+	/* ------------------------------------------------ suggestion feedback */
+
+	feedback(): Readonly<FeedbackLog> {
+		return this.data.feedback;
+	}
+
+	/** Records a verdict, or clears one when the same button is pressed again. */
+	setFeedback(key: string, record: FeedbackRecord | null): void {
+		// Replaced rather than mutated: the hub memoizes the taste model on this
+		// object, and a mutation in place is a change nothing downstream can see.
+		const next = { ...this.data.feedback };
+		if (record) next[key] = record;
+		else delete next[key];
+		this.data.feedback = next;
+		this.scheduleSave();
+		// Loud, unlike the refresh log: the hub re-ranks on every verdict, which
+		// is the whole point of a button that says it is training something.
+		this.notify();
+	}
+
+	clearFeedback(): void {
+		this.data.feedback = {};
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/* --------------------------------------------------------- what was shown */
+
+	shownLog(): Readonly<ShownLog> {
+		return this.data.shown ?? {};
+	}
+
+	/**
+	 * Stamps a row as having been seen.
+	 *
+	 * Quiet, unlike a verdict: the row writing down what it has just drawn must
+	 * not cause the row to be redrawn, which would be a loop. It is read on the
+	 * next build, which is exactly when it is wanted.
+	 */
+	markShown(keys: readonly string[], now: Date = new Date()): void {
+		if (keys.length === 0) return;
+		const next = { ...(this.data.shown ?? {}) };
+		for (const key of keys) next[key] = now.getTime();
+		this.data.shown = pruneShown(next, now);
+		this.scheduleSave();
+	}
+
+	clearShown(): void {
+		this.data.shown = {};
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/* ------------------------------------------------------------ enrichment */
+
+	enrichment(): Readonly<EnrichmentCache> {
+		return this.data.enrichment ?? {};
+	}
+
+	/**
+	 * Files one harvest. Quiet: a run writes fifteen of these in a row, and
+	 * redrawing the hub after each would be fifteen rebuilds of the model for
+	 * one run's worth of new facts. The enricher calls `touch` once at the end.
+	 */
+	setEnrichment(key: string, record: EnrichmentRecord | null): void {
+		const next = { ...(this.data.enrichment ?? {}) };
+		if (record) next[key] = record;
+		else delete next[key];
+		this.data.enrichment = next;
+		this.scheduleSave();
+	}
+
+	/** Replaces the cache wholesale, for pruning after a run. No notification. */
+	setEnrichmentAll(cache: EnrichmentCache): void {
+		this.data.enrichment = cache;
+		this.scheduleSave();
+	}
+
+	clearEnrichment(): void {
+		this.data.enrichment = {};
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/** Replaces the feedback log wholesale, for pruning. No notification. */
+	setFeedbackAll(log: FeedbackLog): void {
+		this.data.feedback = log;
+		this.scheduleSave();
+	}
+
+	/** Says something changed without anything in particular having changed. */
+	touch(): void {
+		this.notify();
+	}
+
+	/* -------------------------------------------------- views & collections */
+
+	/**
+	 * Both lists are replaced rather than edited in place, for the same reason
+	 * the feedback log is: the views that render them memoize on the array, and
+	 * a push nothing can see is a change that does not appear until something
+	 * else happens to re-render.
+	 */
+
+	views(): readonly SavedView[] {
+		return this.data.views;
+	}
+
+	/** Adds a view, or replaces the one with the same id. */
+	saveView(view: SavedView): void {
+		const at = this.data.views.findIndex((v) => v.id === view.id);
+		const next = [...this.data.views];
+		if (at === -1) next.push(view);
+		else next[at] = view;
+		this.data.views = next;
+		this.scheduleSave();
+		this.notify();
+	}
+
+	removeView(id: string): void {
+		this.data.views = this.data.views.filter((view) => view.id !== id);
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/** Moves a view one place along its bar. */
+	moveView(id: string, delta: number): void {
+		const from = this.data.views.findIndex((view) => view.id === id);
+		if (from === -1) return;
+		const to = Math.min(Math.max(from + delta, 0), this.data.views.length - 1);
+		if (to === from) return;
+		const next = [...this.data.views];
+		const [moved] = next.splice(from, 1);
+		if (moved) next.splice(to, 0, moved);
+		this.data.views = next;
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/** Whether the one-time type views have already been offered. */
+	viewsSeeded(): boolean {
+		return this.data.seededViews === true;
+	}
+
+	/**
+	 * Puts the starter views in, once.
+	 *
+	 * The flag is set whatever happens, including when the list is empty,
+	 * because "you have no types worth a tab" is an answer too — and asking the
+	 * question again on every load would put deleted tabs back.
+	 */
+	seedViews(views: readonly SavedView[]): void {
+		if (this.data.seededViews) return;
+		this.data.seededViews = true;
+		if (views.length > 0) this.data.views = [...this.data.views, ...views];
+		this.scheduleSave();
+		this.notify();
+	}
+
+	collections(): readonly CollectionDef[] {
+		return this.data.collections;
+	}
+
+	collection(id: string): CollectionDef | undefined {
+		return this.data.collections.find((item) => item.id === id);
+	}
+
+	saveCollection(collection: CollectionDef): void {
+		const at = this.data.collections.findIndex((c) => c.id === collection.id);
+		const next = [...this.data.collections];
+		if (at === -1) next.push(collection);
+		else next[at] = collection;
+		this.data.collections = next;
+		this.scheduleSave();
+		this.notify();
+	}
+
+	/**
+	 * Forgets the definition. The notes keep the property, which is deliberate:
+	 * deleting a collection should not go and edit fifty notes, and re-creating
+	 * one under the same name finds its members waiting.
+	 */
+	removeCollection(id: string): void {
+		this.data.collections = this.data.collections.filter((c) => c.id !== id);
 		this.scheduleSave();
 		this.notify();
 	}

@@ -11,7 +11,7 @@ import {
 	type MediaKind,
 } from "../../core/types";
 import { ScoutDetailModal } from "../detailModal";
-import { Cover, Icon, useLibraryEntries } from "./shared";
+import { Cover, Icon, KIND_ICONS, useLibraryEntries } from "./shared";
 
 /**
  * One search UI for every provider.
@@ -395,9 +395,18 @@ export default function SearchModal({
 									<div className="scout-result-info">
 										<h3>{item.title}</h3>
 										<p className="scout-result-meta">
+											{/* The same glyph the library
+											    cards carry: a result and the
+											    card it becomes should look
+											    like the same kind of thing. */}
+											<Icon
+												name={KIND_ICONS[item.ref.kind]}
+												size={11}
+											/>
 											{MEDIA_KIND_LABELS[item.ref.kind]}
 											{item.year ? ` · ${item.year}` : ""}
-											{typeof item.rating === "number"
+											{typeof item.rating === "number" &&
+											item.rating > 0
 												? ` · ★ ${item.rating.toFixed(1)}`
 												: ""}
 										</p>

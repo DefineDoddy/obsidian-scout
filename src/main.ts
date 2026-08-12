@@ -2,8 +2,11 @@ import { Notice, Plugin } from "obsidian";
 import { registerCommands } from "./commands";
 import type { ScoutContext } from "./core/context";
 import { HttpClient } from "./core/http";
+import { CollectionKeeper } from "./core/library/collector";
 import { LibraryIndex } from "./core/library/indexer";
 import { LibraryMutator } from "./core/library/mutate";
+import { LibraryEnricher } from "./core/library/enricher";
+import { LibraryRefresher } from "./core/library/refresher";
 import { NoteFactory } from "./core/noteFactory";
 import type { MediaProvider, ProviderContext } from "./core/provider";
 import { ProviderRegistry } from "./core/registry";
@@ -13,6 +16,7 @@ import { AniListProvider } from "./providers/anilist/provider";
 import { OpenLibraryProvider } from "./providers/openlibrary/provider";
 import { TmdbProvider } from "./providers/tmdb/provider";
 import { WebLinkProvider } from "./providers/weblink/provider";
+import { HOME_VIEW_TYPE, ScoutHomeView, openHome } from "./ui/homeView";
 import { LIBRARY_VIEW_TYPE, ScoutLibraryView, openLibrary } from "./ui/libraryView";
 import { ScoutSearchModal } from "./ui/searchModal";
 
@@ -43,7 +47,27 @@ export default class ScoutPlugin extends Plugin {
 	private settings!: ScoutSettings;
 	private context!: ScoutContext;
 
+	/**
+	 * Loading, and saying so when it does not.
+	 *
+	 * Obsidian reports a plugin that threw during load as "failed to load" and
+	 * puts the reason in the console — which on a desktop is one keystroke away
+	 * and on a phone is nowhere at all. Since a phone is exactly where a load
+	 * failure is hardest to diagnose, the reason is put on screen. Rethrown
+	 * afterwards, so Obsidian still counts the plugin as failed rather than as
+	 * loaded and quietly broken.
+	 */
 	async onload(): Promise<void> {
+		try {
+			await this.start();
+		} catch (err) {
+			const reason = err instanceof Error ? err.message : String(err);
+			new Notice(`Scout could not start: ${reason}`, 15_000);
+			throw err;
+		}
+	}
+
+	private async start(): Promise<void> {
 		this.settings = new ScoutSettings(this);
 		await this.settings.load();
 
@@ -68,15 +92,39 @@ export default class ScoutPlugin extends Plugin {
 		const library = new LibraryIndex(this.app, this.settings);
 		library.register(this);
 
+		const mutator = new LibraryMutator(this.app, this.settings);
+		const refresher = new LibraryRefresher(
+			this.settings,
+			registry,
+			library,
+			mutator,
+		);
+
+		const collector = new CollectionKeeper(this.settings, library, mutator);
+		const enricher = new LibraryEnricher(this.settings, registry, library);
+
 		this.context = {
 			app: this.app,
 			settings: this.settings,
 			registry,
 			factory: new NoteFactory(this.app, this.settings, registry),
 			library,
-			mutator: new LibraryMutator(this.app, this.settings),
+			mutator,
+			refresher,
+			enricher,
+			collector,
 		};
 
+		// After load, not during it: the first run waits long enough that
+		// nothing about starting Obsidian is slower for it being installed.
+		refresher.start(this);
+		enricher.start(this);
+		collector.register(this);
+
+		this.registerView(
+			HOME_VIEW_TYPE,
+			(leaf) => new ScoutHomeView(leaf, this.context),
+		);
 		this.registerView(
 			LIBRARY_VIEW_TYPE,
 			(leaf) => new ScoutLibraryView(leaf, this.context),
@@ -85,6 +133,11 @@ export default class ScoutPlugin extends Plugin {
 		this.addSettingTab(new ScoutSettingTab(this.app, this, this.context));
 		registerCommands(this, this.context);
 
+		// The hub first, because it is the one that answers "what now" — the
+		// library is where you go when you already know what you are after.
+		this.addRibbonIcon("clapperboard", "Scout: home", () =>
+			void openHome(this.app),
+		);
 		this.addRibbonIcon("library-big", "Scout: open library", () =>
 			void openLibrary(this.app),
 		);

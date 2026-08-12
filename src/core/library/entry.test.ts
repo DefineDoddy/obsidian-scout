@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultLibraryConfig, type LibraryConfig } from "./config";
-import { buildEntry, resolveKind, type NoteSource } from "./entry";
+import {
+	buildEntry,
+	resolveKind,
+	sameEntry,
+	type NoteSource,
+} from "./entry";
 
 /** A note as the metadata cache hands it over. */
 function note(
@@ -61,6 +66,44 @@ describe("buildEntry", () => {
 		);
 		expect(entry?.rating).toBeUndefined();
 		expect(entry?.sourceRating).toBe(8.2);
+	});
+
+	it("reads how far into a series a note is", () => {
+		const entry = buildEntry(
+			config,
+			note({
+				type: "tv",
+				current_episode: "S02E05",
+				episode_log: { S01E01: 9, "2x03": { rating: 7, note: "the boat one" } },
+			}),
+		);
+
+		expect(entry?.currentEpisode).toEqual({ season: 2, episode: 5 });
+		expect(entry?.episodeLog).toEqual({
+			S01E01: { rating: 9 },
+			S02E03: { rating: 7, note: "the boat one" },
+		});
+	});
+
+	it("reads the dates of earlier times through", () => {
+		const entry = buildEntry(
+			config,
+			note({
+				type: "book",
+				finished: "2026-01-01",
+				history: ["2020-03-04", "2023-07-09"],
+			}),
+		);
+
+		expect(entry?.history).toEqual(["2020-03-04", "2023-07-09"]);
+		expect(entry?.finished).toBe("2026-01-01");
+	});
+
+	it("leaves the series fields empty on a note that has none", () => {
+		const entry = buildEntry(config, note({ type: "movie" }));
+		expect(entry?.history).toEqual([]);
+		expect(entry?.episodeLog).toEqual({});
+		expect(entry?.currentEpisode).toBeUndefined();
 	});
 
 	it("ignores notes with no frontmatter or no recognizable type", () => {
@@ -171,5 +214,61 @@ describe("resolveKind", () => {
 		expect(resolveKind(config, "")).toBeNull();
 		expect(resolveKind(config, undefined)).toBeNull();
 		expect(resolveKind(config, "meeting note")).toBeNull();
+	});
+});
+
+describe("sameEntry", () => {
+	const front = {
+		title: "Arrival",
+		type: "movie",
+		status: "Watched",
+		rating: 4.5,
+		genres: ["Drama", "Science Fiction"],
+	};
+	const parse = (
+		frontmatter: Record<string, unknown>,
+		overrides: Partial<NoteSource> = {},
+	) => {
+		const entry = buildEntry(config, note(frontmatter, overrides));
+		if (!entry) throw new Error("expected an entry");
+		return entry;
+	};
+
+	it("calls two readings of an unchanged note the same", () => {
+		// Two objects, never the same reference: this is the case the index
+		// leans on to drop the re-parses that change nothing.
+		expect(sameEntry(parse({ ...front }), parse({ ...front }))).toBe(true);
+	});
+
+	it("notices a field the library shows", () => {
+		expect(sameEntry(parse(front), parse({ ...front, rating: 5 }))).toBe(
+			false,
+		);
+		expect(
+			sameEntry(parse(front), parse({ ...front, status: "Watching" })),
+		).toBe(false);
+	});
+
+	it("notices a reordered list", () => {
+		const swapped = { ...front, genres: ["Science Fiction", "Drama"] };
+		expect(sameEntry(parse(front), parse(swapped))).toBe(false);
+	});
+
+	it("notices a property only a custom field would read", () => {
+		expect(sameEntry(parse(front), parse({ ...front, shelf: "Loft" }))).toBe(
+			false,
+		);
+		expect(
+			sameEntry(
+				parse({ ...front, shelf: "Loft" }),
+				parse({ ...front, shelf: "Attic" }),
+			),
+		).toBe(false);
+	});
+
+	it("notices the file being touched", () => {
+		expect(
+			sameEntry(parse(front), parse(front, { modified: 9000 })),
+		).toBe(false);
 	});
 });

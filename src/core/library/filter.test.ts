@@ -31,7 +31,11 @@ function entry(
 		kind: "movie" as MediaKind,
 		tags: [],
 		people: [],
+		authored: [],
 		favorite: false,
+		history: [],
+		episodeLog: {},
+		collections: [],
 		created: 0,
 		modified: 0,
 		frontmatter: {},
@@ -163,6 +167,40 @@ describe("sortEntries", () => {
 		expect(
 			sortEntries(LIBRARY, "rating-asc", config).map((e) => e.title),
 		).toEqual(["Dune", "Arrival", "Piranesi"]);
+	});
+
+	// Most of a library is unrated, and "the best thing I have not seen yet" is
+	// the question the sort is usually being asked.
+	it("falls back to the source's score when you have not rated something", () => {
+		const entries = [
+			entry("Mine", { rating: 3 }), // 3/5 — 60%
+			entry("Theirs", { sourceRating: 9 }), // 9/10 — 90%
+			entry("Neither"),
+		];
+		expect(
+			sortEntries(entries, "rating-desc", config).map((e) => e.title),
+		).toEqual(["Theirs", "Mine", "Neither"]);
+		expect(
+			sortEntries(entries, "rating-asc", config).map((e) => e.title),
+		).toEqual(["Mine", "Theirs", "Neither"]);
+	});
+
+	it("puts your own verdict above a borrowed one at the same score", () => {
+		const entries = [
+			entry("Borrowed", { sourceRating: 8 }),
+			entry("Mine", { rating: 4 }), // 4/5 — the same 80%
+		];
+		expect(
+			sortEntries(entries, "rating-desc", config).map((e) => e.title),
+		).toEqual(["Mine", "Borrowed"]);
+	});
+
+	// Nobody having voted is not a verdict of nought.
+	it("treats a source score of zero as no score", () => {
+		const entries = [entry("Unvoted", { sourceRating: 0 }), entry("Bad", { rating: 1 })];
+		expect(
+			sortEntries(entries, "rating-desc", config).map((e) => e.title),
+		).toEqual(["Bad", "Unvoted"]);
 	});
 
 	it("ranks by proportion of the scale, not the raw number", () => {

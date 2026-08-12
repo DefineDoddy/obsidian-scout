@@ -17,8 +17,37 @@ export class HttpError extends Error {
 		readonly url: string,
 		readonly body: string,
 	) {
-		super(`HTTP ${status} for ${url}`);
+		const said = explain(body);
+		super(said ? `${said} (HTTP ${status})` : `HTTP ${status} for ${url}`);
 		this.name = "HttpError";
+	}
+}
+
+/**
+ * Whatever the source said about why, if it said anything.
+ *
+ * GraphQL puts its real complaint in the body and answers 400, so an AniList
+ * failure used to surface as "HTTP 400 for https://graphql.anilist.co" — a
+ * message that names the one thing the reader already knows and hides the one
+ * thing they need. TMDB and Open Library both do the same in their own shape.
+ */
+function explain(body: string): string | null {
+	if (!body) return null;
+	try {
+		const parsed = JSON.parse(body) as {
+			errors?: { message?: string }[];
+			status_message?: string;
+			error?: string | { message?: string };
+			message?: string;
+		};
+		const said =
+			parsed.errors?.[0]?.message ??
+			parsed.status_message ??
+			(typeof parsed.error === "string" ? parsed.error : parsed.error?.message) ??
+			parsed.message;
+		return typeof said === "string" && said.trim() ? said.trim() : null;
+	} catch {
+		return null;
 	}
 }
 
@@ -69,22 +98,44 @@ export class HttpClient {
 		return parsed;
 	}
 
+	/**
+	 * Cached on the payload as well as the URL.
+	 *
+	 * It was not, and every caller passing `cacheTtlMs` to a GraphQL endpoint
+	 * was having it silently ignored — which for AniList is every request it
+	 * makes, since one URL serves every query. So opening the hub re-asked
+	 * AniList about every seed, every time, and pressing "show me others"
+	 * asked again. That is a great deal of traffic for a keyless API with a
+	 * published limit of ninety requests a minute, and rate limiting is what
+	 * AniList answers with when it has had enough.
+	 */
 	async postJson<T>(
 		url: string,
 		payload: unknown,
 		options: RequestOptions = {},
 	): Promise<T> {
+		const serialized = JSON.stringify(payload);
+		const cacheKey = options.cacheTtlMs
+			? `POST ${url} ${serialized} ${JSON.stringify(options.headers ?? {})}`
+			: null;
+		if (cacheKey) {
+			const hit = this.cache.get(cacheKey);
+			if (hit !== undefined) return hit as T;
+		}
+
 		const body = await this.send(
 			{
 				url,
 				method: "POST",
 				contentType: "application/json",
 				headers: { "Content-Type": "application/json", ...options.headers },
-				body: JSON.stringify(payload),
+				body: serialized,
 			},
 			options,
 		);
-		return JSON.parse(body) as T;
+		const parsed = JSON.parse(body) as T;
+		if (cacheKey) this.cache.set(cacheKey, parsed, options.cacheTtlMs);
+		return parsed;
 	}
 
 	async postForm<T>(
